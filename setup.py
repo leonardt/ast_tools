@@ -8,7 +8,7 @@ with open("README.md", "r") as fh:
     LONG_DESCRIPTION = fh.read()
 
 setup(
-    name='ast_tool_box',
+    name='ast_tools',
     url='https://github.com/leonardt/ast_tool_box',
     author='Leonard Truong',
     author_email='lenny@cs.stanford.edu',
