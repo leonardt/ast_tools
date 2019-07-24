@@ -4,7 +4,7 @@
 Toolbox for working with the Python AST
 
 ```
-pip install ast_tool_box
+pip install ast_tools
 ```
 
 # Useful References
