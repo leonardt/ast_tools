@@ -8,6 +8,7 @@ import ast
 __all__ = ["NameCollector", "collect_names", "get_ast"]
 
 from .collect_names import NameCollector, collect_names
+from . import stack
 
 
 def get_ast(obj):

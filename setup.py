@@ -12,7 +12,7 @@ setup(
     url='https://github.com/leonardt/ast_tool_box',
     author='Leonard Truong',
     author_email='lenny@cs.stanford.edu',
-    version='0.0.1',
+    version='0.0.2',
     description='Toolbox for working with the Python AST',
     scripts=[],
     packages=[],
