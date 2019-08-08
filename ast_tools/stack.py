@@ -48,7 +48,7 @@ def get_symbol_table(
                 logging.debug(f'{frame.function} @ {frame.filename}:{frame.lineno} might be leaking names')
         locals = locals.new_child(stack[i].frame.f_locals)
         globals = globals.new_child(stack[i].frame.f_globals)
-    return SymbolTable(locals=locals, globals=globals)
+    return SymbolTable(locals=locals, globals=dict(globals))
 
 def inspect_symbol_table(
         fn: tp.Callable, # tp.Callable[[SymbolTable, ...], tp.Any],
