@@ -18,7 +18,7 @@ _SKIP_FRAME_DEBUG_STMT = f'{_SKIP_FRAME_DEBUG_NAME} = {_SKIP_FRAME_DEBUG_VALUE}'
 _SKIP_FRAME_DEBUG_FAIL = False
 
 class SymbolTable(tp.NamedTuple):
-    locals: tp.Mapping[str, tp.Any]
+    locals: tp.MutableMapping[str, tp.Any]
     globals: tp.Dict[str, tp.Any]
 
 def get_symbol_table(
