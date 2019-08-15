@@ -86,7 +86,7 @@ def get_ast(obj) -> ast.AST:
     return _AST_CACHE.setdefault(obj, tree)
 
 
-def gen_free_name(tree: ast.AST, env: SymbolTable, prefix: str = '__auto_name_'):
+def gen_free_name(tree: ast.AST, env: SymbolTable, prefix: str = '__auto_name_') -> str:
     visitor = UsedNames()
     visitor.visit(tree)
     used_names = visitor.names | env.locals.keys() | env.globals.keys()
@@ -98,3 +98,23 @@ def gen_free_name(tree: ast.AST, env: SymbolTable, prefix: str = '__auto_name_')
         name = f_str.format(c)
 
     return name
+
+def gen_free_prefix(tree: ast.AST, env: SymbolTable, preprefix: str = '__auto_prefix') -> str:
+    def check_prefix(prefix: str, used_names: tp.AbstractSet[str]) -> bool:
+        return not any(name.startswith(prefix) for name in used_names)
+
+    visitor = UsedNames()
+    visitor.visit(tree)
+    used_names = visitor.names | env.locals.keys() | env.globals.keys()
+    if  check_prefix(preprefix, used_names):
+        return preprefix
+
+    f_str = preprefix+'{}'
+    c = 0
+    prefix = f_str.format(c)
+    while not check_prefix(prefix, used_names):
+        c += 1
+        prefix = f_str.format(c)
+
+    return prefix
+

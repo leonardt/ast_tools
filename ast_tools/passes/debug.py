@@ -10,7 +10,7 @@ from ast_tools.stack import SymbolTable
 
 class debug(Pass):
     def __init__(self,
-            dump_ast: bool = True,
+            dump_ast: bool = False,
             dump_src: bool = False,
             dump_env: bool = False,
             file: tp.Optional[str] = None,

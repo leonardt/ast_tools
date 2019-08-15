@@ -7,8 +7,13 @@ import typing as tp
 from ast_tools.stack import get_symbol_table, SymbolTable
 from ast_tools.common import get_ast, exec_def_in_file
 
-__ALL__ = ['Pass', 'begin_rewrite', 'end_rewite']
-
+__ALL__ = [
+    'Pass',
+    'begin_rewrite',
+    'end_rewite',
+    'debug',
+    'single_return',
+]
 _PASS_ARGS_T = tp.Tuple[ast.AST, SymbolTable]
 class Pass(metaclass=ABCMeta):
     """
@@ -30,6 +35,9 @@ class Pass(metaclass=ABCMeta):
         end_rewite
         """
         pass
+
+from .debug import debug
+from .single_return import single_return
 
 class begin_rewrite:
     """
@@ -70,13 +78,12 @@ class end_rewrite(Pass):
                 continue
 
             if isinstance(node, ast.Call):
-                expr = ast.Expression(node.func)
+                name = node.func.id
             else:
                 assert isinstance(node, ast.Name)
-                expr = ast.Expression(node)
+                name = node.id
 
-            code = compile(expr, filename="<string>", mode="eval")
-            deco = eval(code, env.globals, env.locals)
+            deco = env[name]
             if in_group:
                 if  _issubclass(deco, end_rewrite):
                     assert in_group
@@ -89,4 +96,5 @@ class end_rewrite(Pass):
                 decorators.append(node)
 
         tree.decorator_list = reversed(decorators)
+        ast.fix_missing_locations(tree)
         return exec_def_in_file(tree, env, self.path)
