@@ -17,9 +17,36 @@ _SKIP_FRAME_DEBUG_VALUE = 0xdeadbeaf
 _SKIP_FRAME_DEBUG_STMT = f'{_SKIP_FRAME_DEBUG_NAME} = {_SKIP_FRAME_DEBUG_VALUE}'
 _SKIP_FRAME_DEBUG_FAIL = False
 
-class SymbolTable(tp.NamedTuple):
+class SymbolTable(tp.Mapping[str, tp.Any]):
     locals: tp.MutableMapping[str, tp.Any]
     globals: tp.Dict[str, tp.Any]
+    _keys: tp.Optional[tp.AbstractSet[str]]
+
+    def __init__(self,
+            locals: tp.MutableMapping[str, tp.Any],
+            globals: tp.Dict[str, tp.Any]):
+        self.locals = locals
+        self.globals = globals
+        self._keys = None
+
+    def __getitem__(self, key):
+        try:
+            return self.locals[key]
+        except KeyError:
+            pass
+        return self.globals[key]
+
+    def __iter__(self):
+        if self._keys is None:
+            self._keys = self.locals.keys() | self.globals.keys()
+
+        yield from self._keys
+
+    def __len__(self):
+        if self._keys is None:
+            self._keys = self.locals.keys() | self.globals.keys()
+        return len(self._keys)
+
 
 def get_symbol_table(
         decorators: tp.Optional[tp.Sequence[inspect.FrameInfo]] = None
