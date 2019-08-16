@@ -13,6 +13,7 @@ __ALL__ = [
     'end_rewite',
     'debug',
     'single_return',
+    'single_assignment',
 ]
 _PASS_ARGS_T = tp.Tuple[ast.AST, SymbolTable]
 class Pass(metaclass=ABCMeta):
@@ -38,6 +39,7 @@ class Pass(metaclass=ABCMeta):
 
 from .debug import debug
 from .single_return import single_return
+from .single_assignment import single_assignment
 
 class begin_rewrite:
     """
@@ -96,5 +98,5 @@ class end_rewrite(Pass):
                 decorators.append(node)
 
         tree.decorator_list = reversed(decorators)
-        ast.fix_missing_locations(tree)
+        tree = ast.fix_missing_locations(tree)
         return exec_def_in_file(tree, env, self.path)
