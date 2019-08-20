@@ -8,7 +8,7 @@ import typing as tp
 import astor
 
 from . import Pass
-from . import _PASS_ARGS_T
+from . import PASS_ARGS_T
 from ast_tools.common import gen_free_prefix, is_free_name
 from ast_tools.stack import SymbolTable
 from ast_tools.transformers import Renamer
