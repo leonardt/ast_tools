@@ -12,7 +12,7 @@ import astor
 
 from ast_tools import stack
 from ast_tools.stack import SymbolTable
-from ast_tools.visitors import UsedNames
+from ast_tools.visitors import used_names
 
 __ALL__ = ['exec_in_file', 'exec_def_in_file', 'get_ast', 'gen_free_name']
 
@@ -85,15 +85,21 @@ def get_ast(obj) -> ast.AST:
 
     return _AST_CACHE.setdefault(obj, tree)
 
+def is_free_name(tree: ast.AST, env: SymbolTable, name: str):
+    names = used_names(tree)
+    return name not in names and name not in env
+
+def is_free_prefix(tree: ast.AST, env: SymbolTable, prefix: str):
+    names = used_names(tree)
+    return not any(name.startswith(prefix) for name in names | env.keys())
+
 
 def gen_free_name(tree: ast.AST, env: SymbolTable, prefix: str = '__auto_name_') -> str:
-    visitor = UsedNames()
-    visitor.visit(tree)
-    used_names = visitor.names | env.locals.keys() | env.globals.keys()
+    names = used_names(tree) | env.keys()
     f_str = prefix+'{}'
     c = 0
     name = f_str.format(c)
-    while name in used_names:
+    while name in names:
         c += 1
         name = f_str.format(c)
 
@@ -103,16 +109,15 @@ def gen_free_prefix(tree: ast.AST, env: SymbolTable, preprefix: str = '__auto_pr
     def check_prefix(prefix: str, used_names: tp.AbstractSet[str]) -> bool:
         return not any(name.startswith(prefix) for name in used_names)
 
-    visitor = UsedNames()
-    visitor.visit(tree)
-    used_names = visitor.names | env.locals.keys() | env.globals.keys()
-    if  check_prefix(preprefix, used_names):
+    names = used_names(tree) | env.keys()
+
+    if  check_prefix(preprefix, names):
         return preprefix
 
     f_str = preprefix+'{}'
     c = 0
     prefix = f_str.format(c)
-    while not check_prefix(prefix, used_names):
+    while not check_prefix(prefix, names):
         c += 1
         prefix = f_str.format(c)
 

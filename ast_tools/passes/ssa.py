@@ -9,7 +9,9 @@ import astor
 
 from . import Pass
 from . import _PASS_ARGS_T
+from ast_tools.common import gen_free_prefix, is_free_name
 from ast_tools.stack import SymbolTable
+from ast_tools.transformers import Renamer
 
 __ALL__ = ['ssa']
 
@@ -27,14 +29,20 @@ class SSATransformer(ast.NodeTransformer):
     def _make_name(self, name):
         new_name = name + str(self.name_idx[name])
         self.name_idx[name] += 1
+        while not is_free_name(self.root, self.env, new_name):
+            new_name = name + str(self.name_idx[name])
+            self.name_idx[name] += 1
+
         self.name_table[name] = new_name
         return new_name
+
 
     def _make_return(self):
         p = self.return_value_prefx
         name = p + str(self.name_idx[p])
         self.name_idx[p] += 1
         return name
+
 
     def visit(self, node: ast.AST) -> ast.AST:
         # basically want to able to visit a top level function
@@ -54,14 +62,20 @@ class SSATransformer(ast.NodeTransformer):
         else:
             return super().visit(node)
 
+
     def visit_If(self, node: ast.If) -> tp.List[ast.stmt]:
         test = self.visit(node.test)
         nt = self.name_table
         suite = []
 
+        # determine if either branch always returns
+        t_returns = _always_returns(node.body)
+        f_returns = _always_returns(node.orelse)
+
         self.name_table = t_nt = nt.new_child()
         self.cond_stack.append(test)
 
+        # gather nodes from the body
         for child in node.body:
             child = self.visit(child)
             if child is None:
@@ -71,9 +85,11 @@ class SSATransformer(ast.NodeTransformer):
             else:
                 suite.append(child)
 
-        self.name_table = f_nt = nt.new_child()
         self.cond_stack.pop()
+        self.cond_stack.append(ast.UnaryOp(ast.Not(), test))
+        self.name_table = f_nt = nt.new_child()
 
+        # gather nodes from the orelse
         for child in node.orelse:
             child = self.visit(child)
             if child is None:
@@ -83,34 +99,59 @@ class SSATransformer(ast.NodeTransformer):
             else:
                 suite.append(child)
 
+        self.cond_stack.pop()
         self.name_table = nt
 
-        for name in nt.keys() | t_nt.maps[0].keys() | f_nt.maps[0].keys():
-            case0 = name in nt.keys()
-            case1 = name in t_nt.maps[0]
-            case2 = name in f_nt.maps[0]
-            if case0:
-                t_name = f_name = ast.Name(
-                    id=nt[name],
-                    ctx=ast.Load(),
-                )
-            if case1:
-                t_name=ast.Name(
-                    id=t_nt[name],
-                    ctx=ast.Load(),
-                )
-            if case2:
-                f_name=ast.Name(
-                    id=f_nt[name],
-                    ctx=ast.Load(),
-                )
+        # Note by first checking for fall through conditions
+        # then muxing construction of unnecessary muxes is avoided.
+        # However it does obscure program logic somewhat as it will
+        # appear as if old values of names are used.
+        # e.g.:
+        #   if cond:
+        #       var = 1
+        #   else:
+        #       var = 2
+        #       return 0
+        #   return var
+        #
+        # becomes:
+        #   var0 = 1
+        #   var1 = 2
+        #   __return_value0 = 0
+        #   __return_value1 = var0
+        #   return __return_value0 if not cond else __return_value1
+        #
+        # instead of:
+        #   var0 = 1
+        #   var1 = 2
+        #   __return_value0 = 0
+        #   var2 = var0 if cond else var1
+        #   __return_value1 = var2
+        #   return __return_value0 if not cond else __return_value1
 
-            # if either the name was introduced in both branches
-            # or it was already introduced and modified in one or both
-            # mux the name
-            if sum((case0, case1, case2)) >= 2:
-                suite.append(
-                    ast.Assign(
+
+        # only care about new / modified names
+        t_nt = t_nt.maps[0]
+        f_nt = f_nt.maps[0]
+        if t_returns and f_returns:
+            # No need to mux any names they can't fall through anyway
+            pass
+        elif t_returns and not f_returns:
+            # fall through from orelse
+            nt.update(f_nt)
+        elif f_returns and not t_returns:
+            # fall through from body
+            nt.update(t_nt)
+        else:
+            # mux names
+            def _build_name(name):
+                return ast.Name(
+                        id=name,
+                        ctx=ast.Load(),
+                    )
+
+            def _mux_name(name, t_name, f_name):
+                return ast.Assign(
                         targets=[
                             ast.Name(
                                 id=self._make_name(name),
@@ -119,11 +160,22 @@ class SSATransformer(ast.NodeTransformer):
                         ],
                         value=ast.IfExp(
                             test=test,
-                            body=t_name,
-                            orelse=f_name,
-                        )
+                            body=_build_name(t_name),
+                            orelse=_build_name(f_name),
+                        ),
                     )
-                )
+
+            # names in body, names in orelse
+            for name in t_nt.keys() | f_nt.keys():
+                if name in t_nt and name in f_nt:
+                    # mux between true and false
+                    suite.append(_mux_name(name, t_nt[name], f_nt[name]))
+                elif name in t_nt and name in nt:
+                    # mux between true and old value
+                    suite.append(_mux_name(name, t_nt[name], nt[name]))
+                elif name in f_nt and name in nt:
+                    # mux between false and old value
+                    suite.append(_mux_name(name, nt[name], f_nt[name]))
 
         return suite
 
@@ -140,14 +192,16 @@ class SSATransformer(ast.NodeTransformer):
                     id=self._make_name(name),
                     ctx=ctx)
 
+
     def visit_Return(self, node: ast.Return) -> ast.Assign:
-        r_val = node.value
+        r_val = self.visit(node.value)
         r_name = self._make_return()
         self.returns.append((list(self.cond_stack), r_name))
         return ast.Assign(
             targets=[ast.Name(r_name, ast.Store())],
             value=r_val,
         )
+
 
     # don't support control flow other than if
     def visit_For(self, node: ast.For):
@@ -168,18 +222,19 @@ class SSATransformer(ast.NodeTransformer):
     def visit_Try(self, node: ast.Try):
         raise SyntaxError(f"Cannot handle node {node}")
 
-    # don't recurs into defs
+    # don't recurs into defs, but do rename them
     def visit_ClassDef(self, node: ast.ClassDef):
-        #TODO call renamer
-        return node
+        renamer = Renamer(self.name_table.new_child())
+        return renamer.visit(node)
 
     def visit_FunctionDef(self, node: ast.FunctionDef):
-        #TODO call renamer
-        return node
+        renamer = Renamer(self.name_table.new_child())
+        return renamer.visit(node)
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef):
-        #TODO call renamer
-        return node
+        renamer = Renamer(self.name_table.new_child())
+        return renamer.visit(node)
+
 
 def _prove_names_defined(
         env: SymbolTable,
@@ -198,15 +253,14 @@ def _prove_names_defined(
     elif isinstance(node, ast.If):
         t_returns = _always_returns(node.body)
         f_returns = _always_returns(node.orelse)
+        t_names = _prove_names_defined(env, names, node.body)
+        f_names = _prove_names_defined(env, names, node.orelse)
         if not (t_returns or f_returns):
-            t_names = _prove_names_defined(env, names, node.body)
-            f_names = _prove_names_defined(env, names, node.orelse)
             names |= t_names & f_names
         elif t_returns:
-            names |= _prove_names_defined(env, names, node.orelse)
+            names |= f_names
         elif f_returns:
-            names |= _prove_names_defined(env, names, node.body)
-
+            names |= t_names
     elif isinstance(node, ast.AST):
         for child in ast.iter_child_nodes(node):
             names |= _prove_names_defined(env, names, child)
@@ -215,6 +269,7 @@ def _prove_names_defined(
         for child in node:
             names |= _prove_names_defined(env, names, child)
     return names
+
 
 def _always_returns(body: tp.Sequence[ast.stmt]) -> bool:
     for stmt in body:
@@ -226,15 +281,15 @@ def _always_returns(body: tp.Sequence[ast.stmt]) -> bool:
 
     return False
 
+
 def _build_return(
         returns: tp.Sequence[tp.Tuple[tp.List[ast.expr], str]]) -> ast.expr:
     assert returns
     conditions, name = returns[0]
     name = ast.Name(id=name, ctx=ast.Load())
-    if not conditions:
+    if not conditions or len(returns) == 1:
         return name
     else:
-        assert len(returns) >= 1
         expr = ast.IfExp(
             test=ast.BoolOp(
                 op=ast.And(),
@@ -245,11 +300,15 @@ def _build_return(
         )
         return expr
 
+
 class ssa(Pass):
+    def __init__(self, return_prefix: str = '__return_value'):
+        self.return_prefix = return_prefix
+
     def rewrite(self, tree: ast.AST, env: SymbolTable):
         if not isinstance(tree, ast.FunctionDef):
             raise TypeError('ssa should only be applied to functions')
-        r_name = '__return_value'
+        r_name = gen_free_prefix(tree, env, self.return_prefix)
         visitor = SSATransformer(env, r_name)
         tree = visitor.visit(tree)
         tree.body.append(
@@ -258,4 +317,3 @@ class ssa(Pass):
             )
         )
         return tree, env
-

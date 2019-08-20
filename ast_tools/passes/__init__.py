@@ -14,6 +14,7 @@ __ALL__ = [
     'debug',
     'single_return',
     'single_assignment',
+    'ssa'
 ]
 _PASS_ARGS_T = tp.Tuple[ast.AST, SymbolTable]
 class Pass(metaclass=ABCMeta):
@@ -40,6 +41,7 @@ class Pass(metaclass=ABCMeta):
 from .debug import debug
 from .single_return import single_return
 from .single_assignment import single_assignment
+from .ssa import ssa
 
 class begin_rewrite:
     """

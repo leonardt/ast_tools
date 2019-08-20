@@ -1,4 +1,5 @@
 import ast
+from functools import lru_cache
 
 class UsedNames(ast.NodeVisitor):
     def __init__(self):
@@ -15,3 +16,9 @@ class UsedNames(ast.NodeVisitor):
 
     def visit_ClassDef(self, node: ast.ClassDef):
         self.names.add(node.name)
+
+@lru_cache()
+def used_names(tree: ast.AST):
+    visitor = UsedNames()
+    visitor.visit(tree)
+    return visitor.names
