@@ -240,6 +240,11 @@ def _prove_names_defined(
         env: SymbolTable,
         names: tp.AbstractSet[str],
         node: tp.Union[ast.AST, tp.Sequence[ast.AST]]) -> tp.AbstractSet[str]:
+    '''
+    Prove that all names are defined.
+    i.e. if a name is used at some point then all paths leading to that point
+    must either return or define the name.
+    '''
     names = set(names)
     if isinstance(node, ast.Name):
         if isinstance(node.ctx, ast.Store):
@@ -272,6 +277,9 @@ def _prove_names_defined(
 
 
 def _always_returns(body: tp.Sequence[ast.stmt]) -> bool:
+    '''
+    Determine if some sequence of statements always reaches a return
+    '''
     for stmt in body:
         if isinstance(stmt, ast.Return):
             return True
@@ -284,6 +292,17 @@ def _always_returns(body: tp.Sequence[ast.stmt]) -> bool:
 
 def _build_return(
         returns: tp.Sequence[tp.Tuple[tp.List[ast.expr], str]]) -> ast.expr:
+    '''
+    "Fold" ifExpr over a Sequence of conditons and names
+    Final condtion is ignored, this necesarry because of how
+    conditons are generated:
+        if x:
+            return 5
+        else:
+            return 10
+    will generate: [([x], '__return_value0'), ([not x], '__return_value1')]
+    Hence the not x should be dropped.
+    '''
     assert returns
     conditions, name = returns[0]
     name = ast.Name(id=name, ctx=ast.Load())
@@ -302,6 +321,7 @@ def _build_return(
 
 
 class ssa(Pass):
+    ''' Pass to convert a function to SSA form '''
     def __init__(self, return_prefix: str = '__return_value'):
         self.return_prefix = return_prefix
 
