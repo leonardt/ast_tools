@@ -57,7 +57,7 @@ class SSATransformer(ast.NodeTransformer):
                 raise TypeError('SSATransformer must be rooted at a function')
             _prove_names_defined(self.env, self.name_table.keys(), node.body)
             if not _always_returns(node.body):
-                raise SyntaxError(f'Cannot prove {node.id} returns')
+                raise SyntaxError(f'Cannot prove {node.name} returns')
             return super().generic_visit(node)
         else:
             return super().visit(node)
@@ -86,7 +86,32 @@ class SSATransformer(ast.NodeTransformer):
                 suite.append(child)
 
         self.cond_stack.pop()
-        self.cond_stack.append(ast.UnaryOp(ast.Not(), test))
+
+        # Add not condition to the stack if the true branch
+        # does not always return
+        # the idea being that:
+        #   if x:
+        #       return 0
+        #   else:
+        #       return 1
+        #   return 2
+        #
+        # should become:
+        #    return 0 if x else 1
+        #
+        # where:
+        #   if x:
+        #       if y:
+        #           return 0
+        #   else:
+        #       return 1
+        #   return 2
+        #
+        # should become:
+        #   return 0 if x and y else 1 if not x else 2
+        if not t_returns:
+            self.cond_stack.append(ast.UnaryOp(ast.Not(), test))
+
         self.name_table = f_nt = nt.new_child()
 
         # gather nodes from the orelse
@@ -99,7 +124,8 @@ class SSATransformer(ast.NodeTransformer):
             else:
                 suite.append(child)
 
-        self.cond_stack.pop()
+        if not t_returns:
+            self.cond_stack.pop()
         self.name_table = nt
 
         # Note by first checking for fall through conditions
@@ -128,7 +154,6 @@ class SSATransformer(ast.NodeTransformer):
         #   var2 = var0 if cond else var1
         #   __return_value1 = var2
         #   return __return_value0 if not cond else __return_value1
-
 
         # only care about new / modified names
         t_nt = t_nt.maps[0]
@@ -294,19 +319,11 @@ def _build_return(
         returns: tp.Sequence[tp.Tuple[tp.List[ast.expr], str]]) -> ast.expr:
     '''
     "Fold" ifExpr over a Sequence of conditons and names
-    Final condtion is ignored, this necesarry because of how
-    conditons are generated:
-        if x:
-            return 5
-        else:
-            return 10
-    will generate: [([x], '__return_value0'), ([not x], '__return_value1')]
-    Hence the not x should be dropped.
     '''
     assert returns
     conditions, name = returns[0]
     name = ast.Name(id=name, ctx=ast.Load())
-    if not conditions or len(returns) == 1:
+    if not conditions:
         return name
     else:
         expr = ast.IfExp(
