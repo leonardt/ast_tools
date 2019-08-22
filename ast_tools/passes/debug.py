@@ -5,17 +5,19 @@ import warnings
 import astor
 
 from . import Pass
-from . import _PASS_ARGS_T
+from . import PASS_ARGS_T
 from ast_tools.stack import SymbolTable
+
+__ALL__ = ['debug']
 
 class debug(Pass):
     def __init__(self,
-            dump_ast: bool = True,
+            dump_ast: bool = False,
             dump_src: bool = False,
             dump_env: bool = False,
             file: tp.Optional[str] = None,
             append: tp.Optional[bool] = None,
-            ) -> _PASS_ARGS_T:
+            ) -> PASS_ARGS_T:
         self.dump_ast = dump_ast
         self.dump_src = dump_src
         self.dump_env = dump_env
@@ -27,7 +29,7 @@ class debug(Pass):
     def rewrite(self,
             tree: ast.AST,
             env: SymbolTable,
-            ) -> _PASS_ARGS_T:
+            ) -> PASS_ARGS_T:
 
         def _do_dumps(dumps, dump_writer):
             for dump in dumps:
