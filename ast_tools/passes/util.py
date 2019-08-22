@@ -1,3 +1,4 @@
+import inspect
 import ast
 import typing as tp
 
@@ -13,13 +14,18 @@ class begin_rewrite:
     """
     begins a chain of passes
     """
-    def __init__(self):
+    def __init__(self, debug=False):
         env = get_symbol_table([self.__init__])
         self.env = env
+        self.debug = debug
 
     def __call__(self, fn) -> PASS_ARGS_T:
         tree = get_ast(fn)
-        return tree, self.env
+        metadata = {}
+        if self.debug:
+            metadata["source_filename"] = inspect.getsourcefile(fn)
+            metadata["source_lines"] = inspect.getsourcelines(fn)
+        return tree, self.env, metadata
 
 def _issubclass(t, s) -> bool:
     try:
@@ -37,7 +43,8 @@ class end_rewrite(Pass):
 
     def rewrite(self,
             tree: ast.AST,
-            env: SymbolTable) -> tp.Union[tp.Callable, type]:
+            env: SymbolTable,
+            metadata: dict) -> tp.Union[tp.Callable, type]:
         decorators = []
         first_group = True
         in_group = False

@@ -1,7 +1,7 @@
 import functools
 import inspect
 
-from ast_tools.passes import begin_rewrite, end_rewrite
+from ast_tools.passes import begin_rewrite, end_rewrite, debug
 
 
 
@@ -25,3 +25,26 @@ def test_begin_end():
 def foo():
     pass
 '''
+
+
+def test_debug(capsys):
+
+    @end_rewrite
+    @debug(dump_source_filename=True, dump_source_lines=True)
+    @begin_rewrite(debug=True)
+    def foo():
+        print("bar")
+    assert capsys.readouterr().out == """\
+BEGIN SOURCE_FILENAME
+/Users/leonardtruong/repos/ast_tools/tests/test_passes.py
+END SOURCE_FILENAME
+
+BEGIN SOURCE_LINES
+32:    @end_rewrite
+33:    @debug(dump_source_filename=True, dump_source_lines=True)
+34:    @begin_rewrite(debug=True)
+35:    def foo():
+36:        print("bar")
+END SOURCE_LINES
+
+"""

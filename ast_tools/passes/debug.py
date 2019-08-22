@@ -17,6 +17,8 @@ class debug(Pass):
             dump_env: bool = False,
             file: tp.Optional[str] = None,
             append: tp.Optional[bool] = None,
+            dump_source_filename: bool = False,
+            dump_source_lines: bool = False
             ) -> PASS_ARGS_T:
         self.dump_ast = dump_ast
         self.dump_src = dump_src
@@ -25,10 +27,13 @@ class debug(Pass):
             warnings.warn('Option append has no effect when file is None', stacklevel=2)
         self.file = file
         self.append = append
+        self.dump_source_filename = dump_source_filename
+        self.dump_source_lines = dump_source_lines
 
     def rewrite(self,
             tree: ast.AST,
             env: SymbolTable,
+            metadata: dict,
             ) -> PASS_ARGS_T:
 
         def _do_dumps(dumps, dump_writer):
@@ -44,6 +49,19 @@ class debug(Pass):
             dumps.append(('SRC', astor.to_source(tree)))
         if self.dump_env:
             dumps.append(('ENV', repr(env)))
+        if self.dump_source_filename:
+            if "source_filename" not in metadata:
+                raise Exception("Cannot dump source filename without "
+                                "@begin_rewrite(debug=True)")
+            dumps.append(('SOURCE_FILENAME', metadata["source_filename"]))
+        if self.dump_source_lines:
+            if "source_lines" not in metadata:
+                raise Exception("Cannot dump source lines without "
+                                "@begin_rewrite(debug=True)")
+            lines, start_line_number = metadata["source_lines"]
+            dump_str = "".join(f"{start_line_number + i}:{line}" for i, line in
+                               enumerate(lines))
+            dumps.append(('SOURCE_LINES', dump_str))
 
         if self.file is not None:
             if self.append:

@@ -21,6 +21,7 @@ class Pass(metaclass=ABCMeta):
     def rewrite(self,
             env: SymbolTable,
             tree: ast.AST,
+            metadata: dict,
             ) -> PASS_ARGS_T:
 
         """
