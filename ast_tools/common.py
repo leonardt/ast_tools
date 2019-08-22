@@ -29,8 +29,7 @@ def exec_def_in_file(
     if file_name is None:
         file_name = tree.name + '.py'
 
-    exec_in_file(tree, st, path, file_name)
-    return st.locals[tree.name]
+    return exec_in_file(tree, st, path, file_name)[tree.name]
 
 
 def exec_in_file(
@@ -59,8 +58,10 @@ def exec_in_file(
         logging.exception("Error compiling source")
         raise e from None
 
+    st_dict = dict(st)
     try:
-        exec(code, st.globals, st.locals)
+        exec(code, st_dict)
+        return st_dict
     except Exception as e:
         logging.exception("Error executing code")
         raise e from None
