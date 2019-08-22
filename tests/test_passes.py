@@ -34,9 +34,9 @@ def test_debug(capsys):
     @begin_rewrite(debug=True)
     def foo():
         print("bar")
-    assert capsys.readouterr().out == """\
+    assert capsys.readouterr().out == f"""\
 BEGIN SOURCE_FILENAME
-/Users/leonardtruong/repos/ast_tools/tests/test_passes.py
+{os.path.abspath(__file__)}
 END SOURCE_FILENAME
 
 BEGIN SOURCE_LINES
