@@ -62,6 +62,11 @@ class SSATransformer(ast.NodeTransformer):
         else:
             return super().visit(node)
 
+    def visit_Assign(self, node):
+        node.value = self.visit(node.value)
+        node.targets = [self.visit(t) for t in node.targets]
+        return node
+
 
     def visit_If(self, node: ast.If) -> tp.List[ast.stmt]:
         test = self.visit(node.test)
