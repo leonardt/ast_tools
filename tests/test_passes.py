@@ -1,3 +1,4 @@
+import os
 import functools
 import inspect
 
@@ -40,11 +41,11 @@ BEGIN SOURCE_FILENAME
 END SOURCE_FILENAME
 
 BEGIN SOURCE_LINES
-32:    @end_rewrite
-33:    @debug(dump_source_filename=True, dump_source_lines=True)
-34:    @begin_rewrite(debug=True)
-35:    def foo():
-36:        print("bar")
+33:    @end_rewrite
+34:    @debug(dump_source_filename=True, dump_source_lines=True)
+35:    @begin_rewrite(debug=True)
+36:    def foo():
+37:        print("bar")
 END SOURCE_LINES
 
 """
