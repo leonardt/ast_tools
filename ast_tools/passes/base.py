@@ -6,7 +6,7 @@ from ast_tools.stack import SymbolTable
 
 __ALL__ = ['Pass', 'PASS_ARGS_T']
 
-PASS_ARGS_T = tp.Tuple[ast.AST, SymbolTable]
+PASS_ARGS_T = tp.Tuple[ast.AST, SymbolTable, dict]
 
 class Pass(metaclass=ABCMeta):
     """

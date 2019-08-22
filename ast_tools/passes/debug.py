@@ -74,4 +74,4 @@ class debug(Pass):
             def _print(*args, **kwargs): print(*args, end='', **kwargs)
             _do_dumps(dumps, _print)
 
-        return tree, env
+        return tree, env, metadata
