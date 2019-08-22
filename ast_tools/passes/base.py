@@ -1,5 +1,4 @@
 from abc import ABCMeta, abstractmethod
-from collections import MutableMapping
 import ast
 import typing as tp
 
@@ -7,7 +6,7 @@ from ast_tools.stack import SymbolTable
 
 __ALL__ = ['Pass', 'PASS_ARGS_T']
 
-PASS_ARGS_T = tp.Tuple[ast.AST, SymbolTable, MutableMapping]
+PASS_ARGS_T = tp.Tuple[ast.AST, SymbolTable, tp.MutableMapping]
 
 class Pass(metaclass=ABCMeta):
     """
@@ -22,7 +21,7 @@ class Pass(metaclass=ABCMeta):
     def rewrite(self,
             env: SymbolTable,
             tree: ast.AST,
-            metadata: MutableMapping,
+            metadata: tp.MutableMapping,
             ) -> PASS_ARGS_T:
 
         """

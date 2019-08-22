@@ -1,5 +1,5 @@
 import ast
-from collections import ChainMap, Counter, MutableMapping
+from collections import ChainMap, Counter
 import itertools
 import warnings
 import weakref
@@ -342,7 +342,7 @@ class ssa(Pass):
     def __init__(self, return_prefix: str = '__return_value'):
         self.return_prefix = return_prefix
 
-    def rewrite(self, tree: ast.AST, env: SymbolTable, metadata: MutableMapping):
+    def rewrite(self, tree: ast.AST, env: SymbolTable, metadata: tp.MutableMapping):
         if not isinstance(tree, ast.FunctionDef):
             raise TypeError('ssa should only be applied to functions')
         r_name = gen_free_prefix(tree, env, self.return_prefix)
