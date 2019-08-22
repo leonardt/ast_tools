@@ -20,14 +20,12 @@ _SKIP_FRAME_DEBUG_FAIL = False
 class SymbolTable(tp.Mapping[str, tp.Any]):
     locals: tp.MutableMapping[str, tp.Any]
     globals: tp.Dict[str, tp.Any]
-    _keys: tp.Optional[tp.AbstractSet[str]]
 
     def __init__(self,
             locals: tp.MutableMapping[str, tp.Any],
             globals: tp.Dict[str, tp.Any]):
         self.locals = locals
         self.globals = globals
-        self._keys = None
 
     def __getitem__(self, key):
         try:
@@ -37,15 +35,11 @@ class SymbolTable(tp.Mapping[str, tp.Any]):
         return self.globals[key]
 
     def __iter__(self):
-        if self._keys is None:
-            self._keys = self.locals.keys() | self.globals.keys()
-
-        yield from self._keys
+        # the implementation of chain map does things this way
+        yield from set().union(self.locals, self.globals)
 
     def __len__(self):
-        if self._keys is None:
-            self._keys = self.locals.keys() | self.globals.keys()
-        return len(self._keys)
+        return len(set().union(self.locals, self.globals))
 
 
 def get_symbol_table(
