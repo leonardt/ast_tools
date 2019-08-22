@@ -191,7 +191,7 @@ class SSATransformer(ast.NodeTransformer):
                     )
 
             # names in body, names in orelse
-            for name in t_nt.keys() | f_nt.keys():
+            for name in sorted(t_nt.keys() | f_nt.keys()):
                 if name in t_nt and name in f_nt:
                     # mux between true and false
                     suite.append(_mux_name(name, t_nt[name], f_nt[name]))
