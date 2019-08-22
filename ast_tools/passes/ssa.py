@@ -1,11 +1,6 @@
 import ast
 from collections import ChainMap, Counter
-import itertools
-import warnings
-import weakref
 import typing as tp
-
-import astor
 
 from . import Pass
 from . import PASS_ARGS_T
