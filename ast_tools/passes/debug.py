@@ -1,6 +1,7 @@
 import ast
 import typing as tp
 import warnings
+from collections import MutableMapping
 
 import astor
 
@@ -33,7 +34,7 @@ class debug(Pass):
     def rewrite(self,
             tree: ast.AST,
             env: SymbolTable,
-            metadata: dict,
+            metadata: MutableMapping,
             ) -> PASS_ARGS_T:
 
         def _do_dumps(dumps, dump_writer):

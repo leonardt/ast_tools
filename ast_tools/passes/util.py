@@ -1,6 +1,7 @@
 import inspect
 import ast
 import typing as tp
+from collections import MutableMapping
 
 from . import Pass
 from . import PASS_ARGS_T
@@ -44,7 +45,7 @@ class end_rewrite(Pass):
     def rewrite(self,
             tree: ast.AST,
             env: SymbolTable,
-            metadata: dict) -> tp.Union[tp.Callable, type]:
+            metadata: MutableMapping) -> tp.Union[tp.Callable, type]:
         decorators = []
         first_group = True
         in_group = False
