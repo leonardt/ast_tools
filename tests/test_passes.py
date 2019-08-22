@@ -49,3 +49,24 @@ BEGIN SOURCE_LINES
 END SOURCE_LINES
 
 """
+
+
+def test_debug_error():
+
+    try:
+        @end_rewrite
+        @debug(dump_source_filename=True)
+        @begin_rewrite()
+        def foo():
+            print("bar")
+    except Exception as e:
+        assert str(e) == "Cannot dump source filename without @begin_rewrite(debug=True)"
+
+    try:
+        @end_rewrite
+        @debug(dump_source_lines=True)
+        @begin_rewrite()
+        def foo():
+            print("bar")
+    except Exception as e:
+        assert str(e) == "Cannot dump source lines without @begin_rewrite(debug=True)"
