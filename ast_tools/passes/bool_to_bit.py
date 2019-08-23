@@ -8,38 +8,38 @@ from ast_tools.stack import SymbolTable
 
 __ALL__ = ['bool_to_bit']
 
-class AndTransformer(ast.NodeTransformer):
+class BoolOpTransformer(ast.NodeTransformer):
     def visit_BoolOp(self, node: ast.BoolOp) -> ast.expr:
         # Can't get more specific on return type because if
         # len(node.values) == 1 (which it shouldn't be)
         # then the return type is expr otherwise
         # the return type is Union[BinOp, BoolOp]
 
-        if isinstance(node.op, ast.And):
+        if isinstance(node.op, self.match):
             values = node.values
             assert values # should not be empty
             expr = self.visit(values[0])
             for v in map(self.visit, values[1:]):
-                expr = ast.BinOp(expr, ast.BitAnd(), v)
+                expr = ast.BinOp(expr, self.replace(), v)
             return expr
         else:
             return self.generic_visit(node)
 
-class OrTransformer(ast.NodeTransformer):
-    def visit_BoolOp(self, node: ast.BoolOp) -> ast.expr:
-        if isinstance(node.op, ast.Or):
-            values = node.values
-            assert values # should not be empty
-            expr = self.visit(values[0])
-            for v in map(self.visit, values[1:]):
-                expr = ast.BinOp(expr, ast.BitOr(), v)
-            return expr
-        else:
-            return self.generic_visit(node)
+
+class AndTransformer(BoolOpTransformer):
+    match = ast.And
+    replace = ast.BitAnd
+
+
+class OrTransformer(BoolOpTransformer):
+    match = ast.Or
+    replace = ast.BitOr
+
 
 class NotTransformer(ast.NodeTransformer):
     def visit_Not(self, node: ast.Not) -> ast.Invert:
         return ast.Invert()
+
 
 class bool_to_bit(Pass):
     '''
