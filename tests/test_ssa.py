@@ -141,3 +141,36 @@ def foo(a, b):
     return __return_value0
 """
 
+
+def test_double_nested_function_call():
+    def bar(x):
+        return x
+
+    def baz(x):
+        return x + 1
+
+    @end_rewrite()
+    @ssa()
+    @begin_rewrite()
+    def foo(a, b, c):
+        if b:
+            a = bar(a)
+        else:
+            a = bar(a)
+        if c:
+            b = bar(b)
+        else:
+            b = bar(b)
+        return a, b
+    print(inspect.getsource(foo))
+    assert inspect.getsource(foo) == """\
+def foo(a, b, c):
+    a0 = bar(a)
+    a1 = bar(a)
+    a2 = a0 if b else a1
+    b0 = bar(b)
+    b1 = bar(b)
+    b2 = b0 if c else b1
+    __return_value0 = a2
+    return __return_value0
+"""
