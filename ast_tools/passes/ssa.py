@@ -1,11 +1,6 @@
 import ast
 from collections import ChainMap, Counter
-import itertools
-import warnings
-import weakref
 import typing as tp
-
-import astor
 
 from . import Pass
 from . import PASS_ARGS_T
@@ -342,7 +337,10 @@ class ssa(Pass):
     def __init__(self, return_prefix: str = '__return_value'):
         self.return_prefix = return_prefix
 
-    def rewrite(self, tree: ast.AST, env: SymbolTable, metadata: tp.MutableMapping):
+    def rewrite(self,
+            tree: ast.AST,
+            env: SymbolTable,
+            metadata: tp.MutableMapping) -> PASS_ARGS_T:
         if not isinstance(tree, ast.FunctionDef):
             raise TypeError('ssa should only be applied to functions')
         r_name = gen_free_prefix(tree, env, self.return_prefix)
