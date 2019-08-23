@@ -1,4 +1,5 @@
 import ast
+import inspect
 
 import pytest
 
@@ -119,3 +120,57 @@ def test_imbalanced(a, b, c, d):
         for x in (False, True):
             for y in (False, True):
                 assert imbalanced(x, y) == imbalanced_ssa(x, y)
+
+
+def test_reassign_arg():
+    def bar(x):
+        return x
+
+    @end_rewrite()
+    @ssa()
+    @begin_rewrite()
+    def foo(a, b):
+        if b:
+            a = bar(a)
+        return a
+    assert inspect.getsource(foo) == """\
+def foo(a, b):
+    a0 = bar(a)
+    a1 = a0 if b else a
+    __return_value0 = a1
+    return __return_value0
+"""
+
+
+def test_double_nested_function_call():
+    def bar(x):
+        return x
+
+    def baz(x):
+        return x + 1
+
+    @end_rewrite()
+    @ssa()
+    @begin_rewrite()
+    def foo(a, b, c):
+        if b:
+            a = bar(a)
+        else:
+            a = bar(a)
+        if c:
+            b = bar(b)
+        else:
+            b = bar(b)
+        return a, b
+    print(inspect.getsource(foo))
+    assert inspect.getsource(foo) == """\
+def foo(a, b, c):
+    a0 = bar(a)
+    a1 = bar(a)
+    a2 = a0 if b else a1
+    b0 = bar(b)
+    b1 = bar(b)
+    b2 = b0 if c else b1
+    __return_value0 = a2, b2
+    return __return_value0
+"""

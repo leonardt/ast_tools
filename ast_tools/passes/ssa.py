@@ -57,6 +57,12 @@ class SSATransformer(ast.NodeTransformer):
         else:
             return super().visit(node)
 
+    def visit_Assign(self, node):
+        # visit RHS first
+        node.value = self.visit(node.value)
+        node.targets = [self.visit(t) for t in node.targets]
+        return node
+
 
     def visit_If(self, node: ast.If) -> tp.List[ast.stmt]:
         test = self.visit(node.test)
@@ -204,8 +210,16 @@ class SSATransformer(ast.NodeTransformer):
         name = node.id
         ctx = node.ctx
         if isinstance(ctx, ast.Load):
+            # Names in Load context should not be added to the name table
+            # as it makes them seem like they have been modified.
+            try:
+                return ast.Name(
+                        id=self.name_table[name],
+                        ctx=ctx)
+            except KeyError:
+                pass
             return ast.Name(
-                    id=self.name_table.setdefault(name, name),
+                    id=name,
                     ctx=ctx)
         else:
             return ast.Name(
