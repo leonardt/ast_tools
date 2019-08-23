@@ -171,6 +171,6 @@ def foo(a, b, c):
     b0 = bar(b)
     b1 = bar(b)
     b2 = b0 if c else b1
-    __return_value0 = a2
+    __return_value0 = a2, b2
     return __return_value0
 """

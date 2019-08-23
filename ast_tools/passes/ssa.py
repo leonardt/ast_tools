@@ -215,8 +215,16 @@ class SSATransformer(ast.NodeTransformer):
         name = node.id
         ctx = node.ctx
         if isinstance(ctx, ast.Load):
+            # Names in Load context should not be added to the name table
+            # as it makes them seem like they have been modified.
+            try:
+                return ast.Name(
+                        id=self.name_table[name],
+                        ctx=ctx)
+            except KeyError:
+                pass
             return ast.Name(
-                    id=self.name_table.setdefault(name, name),
+                    id=name,
                     ctx=ctx)
         else:
             return ast.Name(
