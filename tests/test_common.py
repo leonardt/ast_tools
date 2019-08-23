@@ -15,23 +15,23 @@ def test_get_ast():
 
 def test_gen_free():
     src = '''
-class P0:
+class P:
     P5 = 1
     def __init__(self): self.y = 0
-def P1():
-    return P0.P5
-P2 = P1()
+def P0():
+    return P.P5
+P1 = P0()
 '''
     tree = ast.parse(src)
     env = SymbolTable({}, {})
     free_name = gen_free_name(tree, env, prefix='P')
-    assert free_name == 'P3'
-    env = SymbolTable({'P4': 'foo'}, {})
+    assert free_name == 'P2'
+    env = SymbolTable({'P3': 'foo'}, {})
     free_name = gen_free_name(tree, env, prefix='P')
-    assert free_name == 'P3'
-    env = SymbolTable({'P4': 'foo'}, {'P3' : 'bar'})
+    assert free_name == 'P2'
+    env = SymbolTable({'P3': 'foo'}, {'P2' : 'bar'})
     free_name = gen_free_name(tree, env, prefix='P')
-    assert free_name == 'P5'
+    assert free_name == 'P4'
 
 
 def test_exec_in_file():
