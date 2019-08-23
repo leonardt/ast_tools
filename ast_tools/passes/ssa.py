@@ -63,6 +63,7 @@ class SSATransformer(ast.NodeTransformer):
             return super().visit(node)
 
     def visit_Assign(self, node):
+        # visit RHS first
         node.value = self.visit(node.value)
         node.targets = [self.visit(t) for t in node.targets]
         return node
