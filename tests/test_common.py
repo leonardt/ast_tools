@@ -2,6 +2,7 @@ import ast
 import astor
 
 from ast_tools.common import get_ast, gen_free_name, SymbolTable
+from ast_tools.passes import begin_rewrite, end_rewrite
 
 
 def test_get_ast():
@@ -31,3 +32,17 @@ P2 = P1()
     env = SymbolTable({'P4': 'foo'}, {'P3' : 'bar'})
     free_name = gen_free_name(tree, env, prefix='P')
     assert free_name == 'P5'
+
+
+def test_exec_in_file():
+    x = 3
+    def foo():
+        return x
+    assert foo() == 3
+
+    @end_rewrite()
+    @begin_rewrite()
+    def foo():
+        return x
+
+    assert foo() == 3
