@@ -1,5 +1,6 @@
-import functools as ft
 import ast
+import functools as ft
+import typing as tp
 
 __ALL__ = ['ImmutableMeta', 'immutable', 'mutable']
 

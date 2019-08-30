@@ -42,15 +42,43 @@ def test_mutable_to_immutable(tree):
 
 @pytest.mark.parametrize("tree", trees)
 def test_immutable_to_mutable(tree):
+    def _test(tree, mtree):
+        assert type(tree) is type(mtree)
+        if isinstance(tree, ast.AST):
+            for field, value in ast.iter_fields(tree):
+                _test(value, getattr(mtree, field))
+        elif isinstance(tree, list):
+            assert len(tree) == len(mtree)
+            for c, mc in zip(tree, mtree):
+                _test(c, mc)
+        else:
+            assert tree == mtree
+
     itree = immutable_ast.immutable(tree)
     mtree = immutable_ast.mutable(itree)
+    _test(tree, mtree)
 
-    assert itree == immutable_ast.immutable(mtree)
+
+@pytest.mark.parametrize("tree", trees)
+def test_eq(tree):
+    itree = immutable_ast.immutable(tree)
+    jtree = immutable_ast.immutable(tree)
+    assert itree == jtree
+    assert hash(itree) == hash(jtree)
 
 def test_mutate():
     node = immutable_ast.Name(id='foo', ctx=immutable_ast.Load())
-    with pytest.raises(AttributeError):
-        node.id = 'bar'
+    # can add metadata to a node
+    node.random = 0
+    del node.random
+
+    # but cant change its fields
+    for field in node._fields:
+        with pytest.raises(AttributeError):
+            setattr(node, field, 'bar')
+
+        with pytest.raises(AttributeError):
+            delattr(node, field)
 
 
 def test_construct_from_mutable():
