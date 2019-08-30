@@ -1,16 +1,25 @@
 import pytest
-import random
 import ast
 
+import inspect
 from ast_tools import immutable_ast
 from ast_tools.immutable_ast import ImmutableMeta
+from ast_tools import _immutable_ast
 
-with open(immutable_ast.__file__, 'r') as f:
-    text = f.read()
 
-tree = ast.parse(text)
+trees = []
 
-def test_mutable_to_immutable():
+# inspect is about the largest module I know
+# hopefully it has a diverse ast
+for mod in (immutable_ast, _immutable_ast, inspect, ast, pytest):
+    with open(mod.__file__, 'r') as f:
+        text = f.read()
+    tree = ast.parse(text)
+    trees.append(tree)
+
+
+@pytest.mark.parametrize("tree", trees)
+def test_mutable_to_immutable(tree):
     def _test(tree, itree):
         if isinstance(tree, ast.AST):
             assert isinstance(itree, immutable_ast.AST)
@@ -31,7 +40,8 @@ def test_mutable_to_immutable():
     itree = immutable_ast.immutable(tree)
     _test(tree, itree)
 
-def test_immutable_to_mutable():
+@pytest.mark.parametrize("tree", trees)
+def test_immutable_to_mutable(tree):
     itree = immutable_ast.immutable(tree)
     mtree = immutable_ast.mutable(itree)
 
