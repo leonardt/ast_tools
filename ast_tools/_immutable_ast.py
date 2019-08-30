@@ -107,7 +107,7 @@ def mutable(tree: 'AST'):
 # could actually generate the classes and put them in globals
 # but that would make text editors suck (no autocomplete etc)
 # so Instead generate the actual file
-def _generate_immutable_ast():
+def _generate_immutable_ast(): # pragma: no cover
     import ast
     import inspect
     import sys
@@ -233,7 +233,7 @@ if sys.version_info[:2] != {sys.version_info[:2]}:
     )
 
 
-if __name__ == '__main__':
+if __name__ == '__main__': # pragma: no cover 
     s = _generate_immutable_ast()
     with open('immutable_ast.py', 'w') as f:
         f.write(s)
