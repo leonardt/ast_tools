@@ -131,11 +131,11 @@ def test_reassign_arg():
     @begin_rewrite()
     def foo(a, b):
         if b:
-            a = bar(a)
+            a = len(a)
         return a
     assert inspect.getsource(foo) == """\
 def foo(a, b):
-    a0 = bar(a)
+    a0 = len(a)
     a1 = a0 if b else a
     __return_value0 = a1
     return __return_value0
