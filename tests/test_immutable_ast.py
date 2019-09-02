@@ -4,14 +4,13 @@ import ast
 import inspect
 from ast_tools import immutable_ast
 from ast_tools.immutable_ast import ImmutableMeta
-from ast_tools import _immutable_ast
 
 
 trees = []
 
 # inspect is about the largest module I know
 # hopefully it has a diverse ast
-for mod in (immutable_ast, _immutable_ast, inspect, ast, pytest):
+for mod in (immutable_ast, inspect, ast, pytest):
     with open(mod.__file__, 'r') as f:
         text = f.read()
     tree = ast.parse(text)
