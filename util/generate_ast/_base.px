@@ -1,4 +1,9 @@
 class AST(mutable=ast.AST, metaclass=ImmutableMeta):
+    def replace(self, **kwargs):
+        args = {field: getattr(self, field) for field in self._fields}
+        args.update(kwargs)
+        return type(self)(**args)
+
     def __setattr__(self, attr, value):
         if attr in self._fields and hasattr(self, attr):
             raise AttributeError('Cannot modify ImmutableAST fields')
@@ -31,9 +36,9 @@ class AST(mutable=ast.AST, metaclass=ImmutableMeta):
         return h
 
     def __eq__(self, other):
-        if not isinstance(other, type(self)):
+        if not isinstance(other, AST):
             return NotImplemented
-        elif type(self) == type(other):
+        elif isinstance(other, type(self)):
             for f in self._fields:
                 if getattr(self, f) != getattr(other, f):
                     return False

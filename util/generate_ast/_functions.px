@@ -1,6 +1,6 @@
 __ALL__ += ['immutable', 'mutable', 'parse', 'dump',
-			'iter_fields', 'iter_child_nodes', 'walk',
-			'NodeVisitor', 'NodeTransformer']
+            'iter_fields', 'iter_child_nodes', 'walk',
+            'NodeVisitor', 'NodeTransformer']
 
 
 def _cast_tree(seq_t, n_seq_t, type_look_up, tree):
@@ -37,13 +37,15 @@ def dump(node, annotate_fields=True, include_attributes=False) -> str:
     tree = mutable(node)
     return ast.dump(tree)
 
+S_NODE = (list, tuple)
 
 # duck typing ftw
 iter_fields = ast.iter_fields
 
 # The following is more or less copied verbatim from
 # CPython/Lib/ast.py. Changes are:
-# s/list/tuple/
+#   s/list/S_NODE/
+#   where S_NODE = (list, tuple)
 #
 # The CPython license is very permissive so I am pretty sure this is cool.
 # If it is not Guido please forgive me.
@@ -51,7 +53,7 @@ def iter_child_nodes(node):
     for name, field in iter_fields(node):
         if isinstance(field, AST):
             yield field
-        elif isinstance(field, tuple):
+        elif isinstance(field, S_NODE):
             for item in field:
                 if isinstance(item, AST):
                     yield item
@@ -75,7 +77,7 @@ class NodeVisitor:
 
     def generic_visit(self, node):
         for field, value in iter_fields(node):
-            if isinstance(value,  tuple):
+            if isinstance(value,  S_NODE):
                 for item in value:
                     if isinstance(item, AST):
                         self.visit(item)
@@ -93,7 +95,7 @@ class NodeTransformer(NodeVisitor):
     def generic_visit(self, node):
         kwargs = {}
         for field, old_value in iter_fields(node):
-            if isinstance(old_value, tuple):
+            if isinstance(old_value, S_NODE):
                 new_value = []
                 for value in old_value:
                     if isinstance(value, AST):
@@ -105,7 +107,7 @@ class NodeTransformer(NodeVisitor):
                             continue
                     new_value.append(value)
                 new_value = tuple(new_value)
-            elif isinstance(type(old_value), ImmutableMeta):
+            elif isinstance(old_value, AST):
                 new_value = self.visit(old_value)
             else:
                 new_value = old_value
