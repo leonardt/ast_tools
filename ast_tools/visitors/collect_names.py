@@ -2,10 +2,10 @@
 Defines a visitor that collects all names contained in an AST
 """
 
-import ast
+from ast_tools import immutable_ast as iast
 
 
-class NameCollector(ast.NodeVisitor):
+class NameCollector(iast.NodeVisitor):
     """
     Collect all instances of `Name` in an AST
     """

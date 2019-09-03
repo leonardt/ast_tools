@@ -1,4 +1,3 @@
-import ast
 import functools
 import inspect
 import itertools
@@ -11,13 +10,14 @@ import weakref
 
 import astor
 
+from ast_tools import immutable_ast as iast
 from ast_tools import stack
 from ast_tools.stack import SymbolTable
 from ast_tools.visitors import used_names
 
 __ALL__ = ['exec_in_file', 'exec_def_in_file', 'get_ast', 'gen_free_name']
 
-DefStmt = tp.Union[ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef]
+DefStmt = tp.Union[iast.FunctionDef, iast.AsyncFunctionDef, iast.ClassDef]
 
 def exec_def_in_file(
         tree: DefStmt,
@@ -34,7 +34,7 @@ def exec_def_in_file(
 
 
 def exec_in_file(
-        tree: ast.AST,
+        tree: iast.AST,
         st: SymbolTable,
         path: tp.Optional[str] = None,
         file_name: tp.Optional[str] = None) -> None:
@@ -47,6 +47,7 @@ def exec_in_file(
     if file_name is None:
         file_name = f'ast_tools_exec_{hash(tree)}.py'
 
+    tree = iast.mutable(tree)
     source = astor.to_source(tree)
     file_name = os.path.join(path, file_name)
     os.makedirs(path, exist_ok=True)
@@ -69,7 +70,7 @@ def exec_in_file(
 
 
 _AST_CACHE = weakref.WeakKeyDictionary()
-def get_ast(obj) -> ast.AST:
+def get_ast(obj) -> iast.AST:
     """
     Given an object, get the corresponding AST
     """
@@ -81,19 +82,19 @@ def get_ast(obj) -> ast.AST:
     src = textwrap.dedent(inspect.getsource(obj))
 
     if isinstance(obj, types.ModuleType):
-        tree = ast.parse(src)
+        tree = iast.parse(src)
     else:
-        tree = ast.parse(src).body[0]
+        tree = iast.parse(src).body[0]
 
     return _AST_CACHE.setdefault(obj, tree)
 
 
-def is_free_name(tree: ast.AST, env: SymbolTable, name: str):
+def is_free_name(tree: iast.AST, env: SymbolTable, name: str):
     names = used_names(tree)
     return name not in names and name not in env
 
 
-def is_free_prefix(tree: ast.AST, env: SymbolTable, prefix: str):
+def is_free_prefix(tree: iast.AST, env: SymbolTable, prefix: str):
     names = used_names(tree)
     return not any(
             name.startswith(prefix)
@@ -101,7 +102,7 @@ def is_free_prefix(tree: ast.AST, env: SymbolTable, prefix: str):
 
 
 def gen_free_name(
-        tree: ast.AST,
+        tree: iast.AST,
         env: SymbolTable,
         prefix: tp.Optional[str] = None) -> str:
     names = used_names(tree) | env.keys()
@@ -121,7 +122,7 @@ def gen_free_name(
 
 
 def gen_free_prefix(
-        tree: ast.AST,
+        tree: iast.AST,
         env: SymbolTable,
         preprefix: tp.Optional[str] = None) -> str:
     def check_prefix(prefix: str, used_names: tp.AbstractSet[str]) -> bool:

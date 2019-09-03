@@ -1,7 +1,7 @@
 """
 Test collecting instances of `ast.Name`
 """
-import ast
+from ast_tools import immutable_ast as iast
 from ast_tools.visitors import collect_names
 from ast_tools.visitors import UsedNames
 
@@ -15,14 +15,14 @@ def foo(bar, baz):  # pylint: disable=blacklisted-name
     return buzz
 '''
 
-    foo_ast = ast.parse(s)
+    foo_ast = iast.parse(s)
     assert collect_names(foo_ast) == {"bar", "baz", "buzz"}
-    assert collect_names(foo_ast, ctx=ast.Load) == {"bar", "baz", "buzz"}
-    assert collect_names(foo_ast, ctx=ast.Store) == {"buzz"}
+    assert collect_names(foo_ast, ctx=iast.Load) == {"bar", "baz", "buzz"}
+    assert collect_names(foo_ast, ctx=iast.Store) == {"buzz"}
 
 
 def test_used_names():
-    tree =  ast.parse('''
+    tree =  iast.parse('''
 x = 1
 def foo():
     def g():

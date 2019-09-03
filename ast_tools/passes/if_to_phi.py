@@ -1,28 +1,27 @@
-import ast
 import warnings
 import typing as tp
 
 from . import Pass
 from . import PASS_ARGS_T
-
+from ast_tools import immutable_ast as iast
 from ast_tools.common import gen_free_name
 from ast_tools.stack import SymbolTable
 
 __ALL__ = ['if_to_phi']
 
 
-class IfExpTransformer(ast.NodeTransformer):
+class IfExpTransformer(iast.NodeTransformer):
     def __init__(self, phi_name: str):
         self.phi_name = phi_name
 
-    def visit_IfExp(self, node: ast.IfExp):
+    def visit_IfExp(self, node: iast.IfExp):
         test = self.visit(node.test)
         body = self.visit(node.body)
         orelse = self.visit(node.orelse)
-        return ast.Call(
-                func=ast.Name(
+        return iast.Call(
+                func=iast.Name(
                     id=self.phi_name,
-                    ctx=ast.Load()
+                    ctx=iast.Load()
                 ),
                 args=[test, body, orelse],
                 keywords=[]
@@ -52,7 +51,7 @@ class if_to_phi(Pass):
         self.phi_name_prefix = phi_name_prefix
 
     def rewrite(self,
-            tree: ast.AST,
+            tree: iast.AST,
             env: SymbolTable,
             metadata: tp.MutableMapping) -> PASS_ARGS_T:
 

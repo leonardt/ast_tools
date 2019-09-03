@@ -1,6 +1,4 @@
-import ast
-import astor
-
+from ast_tools import immutable_ast as iast
 from ast_tools.common import get_ast, gen_free_name, gen_free_prefix
 from ast_tools.stack import SymbolTable
 from ast_tools.passes import begin_rewrite, end_rewrite
@@ -9,9 +7,9 @@ from ast_tools.passes import begin_rewrite, end_rewrite
 def test_get_ast():
     def f(): pass
     f_str = 'def f(): pass'
-    ast_str_0 = astor.dump_tree(get_ast(f))
-    ast_str_1 = astor.dump_tree(ast.parse(f_str).body[0])
-    assert ast_str_0 == ast_str_1
+    ast_0 = get_ast(f)
+    ast_1 = iast.parse(f_str)
+    assert ast_0 == ast_1.body[0]
 
 
 def test_gen_free_name():
@@ -23,7 +21,7 @@ def P0():
     return P.P5
 P1 = P0()
 '''
-    tree = ast.parse(src)
+    tree = iast.parse(src)
     env = SymbolTable({}, {})
 
     free_name = gen_free_name(tree, env)
@@ -47,7 +45,7 @@ def P0():
     return P.P5
 P1 = P0()
 '''
-    tree = ast.parse(src)
+    tree = iast.parse(src)
     env = SymbolTable({}, {})
 
     free_prefix = gen_free_prefix(tree, env)

@@ -1,15 +1,14 @@
-import ast
 import typing as tp
 
 from . import Pass
 from . import PASS_ARGS_T
-
+from ast_tools import immutable_ast as iast
 from ast_tools.stack import SymbolTable
 
 __ALL__ = ['bool_to_bit']
 
-class BoolOpTransformer(ast.NodeTransformer):
-    def visit_BoolOp(self, node: ast.BoolOp) -> ast.expr:
+class BoolOpTransformer(iast.NodeTransformer):
+    def visit_BoolOp(self, node: iast.BoolOp) -> iast.expr:
         # Can't get more specific on return type because if
         # len(node.values) == 1 (which it shouldn't be)
         # then the return type is expr otherwise
@@ -20,25 +19,25 @@ class BoolOpTransformer(ast.NodeTransformer):
             assert values # should not be empty
             expr = self.visit(values[0])
             for v in map(self.visit, values[1:]):
-                expr = ast.BinOp(expr, self.replace(), v)
+                expr = iast.BinOp(expr, self.replace(), v)
             return expr
         else:
             return self.generic_visit(node)
 
 
 class AndTransformer(BoolOpTransformer):
-    match = ast.And
-    replace = ast.BitAnd
+    match = iast.And
+    replace = iast.BitAnd
 
 
 class OrTransformer(BoolOpTransformer):
-    match = ast.Or
-    replace = ast.BitOr
+    match = iast.Or
+    replace = iast.BitOr
 
 
-class NotTransformer(ast.NodeTransformer):
-    def visit_Not(self, node: ast.Not) -> ast.Invert:
-        return ast.Invert()
+class NotTransformer(iast.NodeTransformer):
+    def visit_Not(self, node: iast.Not) -> iast.Invert:
+        return iast.Invert()
 
 
 class bool_to_bit(Pass):
@@ -56,7 +55,7 @@ class bool_to_bit(Pass):
         self.replace_not = replace_not
 
     def rewrite(self,
-            tree: ast.AST,
+            tree: iast.AST,
             env: SymbolTable,
             metadata: tp.MutableMapping) -> PASS_ARGS_T:
         if self.replace_and:

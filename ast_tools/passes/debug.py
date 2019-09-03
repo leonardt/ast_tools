@@ -6,6 +6,7 @@ import astor
 
 from . import Pass
 from . import PASS_ARGS_T
+from ast_tools import immutable_ast as iast
 from ast_tools.stack import SymbolTable
 
 __ALL__ = ['debug']
@@ -31,7 +32,7 @@ class debug(Pass):
         self.dump_source_lines = dump_source_lines
 
     def rewrite(self,
-            tree: ast.AST,
+            tree: iast.AST,
             env: SymbolTable,
             metadata: tp.MutableMapping,
             ) -> PASS_ARGS_T:
@@ -43,10 +44,13 @@ class debug(Pass):
                 dump_writer(f'\nEND {dump[0]}\n\n')
 
         dumps = []
-        if self.dump_ast:
-            dumps.append(('AST', astor.dump_tree(tree)))
-        if self.dump_src:
-            dumps.append(('SRC', astor.to_source(tree)))
+        if self.dump_ast or self.dump_src:
+            tree_ = iast.mutable(tree)
+            if self.dump_ast:
+                dumps.append(('AST', astor.dump_tree(tree_)))
+            if self.dump_src:
+                dumps.append(('SRC', astor.to_source(tree_)))
+
         if self.dump_env:
             dumps.append(('ENV', repr(env)))
         if self.dump_source_filename:

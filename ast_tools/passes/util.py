@@ -4,7 +4,7 @@ import typing as tp
 
 from . import Pass
 from . import PASS_ARGS_T
-
+from ast_tools import immutable_ast as iast
 from ast_tools.stack import get_symbol_table, SymbolTable
 from ast_tools.common import get_ast, exec_def_in_file
 
@@ -21,6 +21,7 @@ class begin_rewrite:
 
     def __call__(self, fn) -> PASS_ARGS_T:
         tree = get_ast(fn)
+        tree = iast.immutable(tree)
         metadata = {}
         if self.debug:
             metadata["source_filename"] = inspect.getsourcefile(fn)
@@ -42,9 +43,10 @@ class end_rewrite(Pass):
         self.path = path
 
     def rewrite(self,
-            tree: ast.AST,
+            tree: iast.AST,
             env: SymbolTable,
             metadata: tp.MutableMapping) -> tp.Union[tp.Callable, type]:
+
         decorators = []
         first_group = True
         in_group = False
@@ -54,10 +56,10 @@ class end_rewrite(Pass):
                 decorators.append(node)
                 continue
 
-            if isinstance(node, ast.Call):
+            if isinstance(node, iast.Call):
                 name = node.func.id
             else:
-                assert isinstance(node, ast.Name)
+                assert isinstance(node, iast.Name)
                 name = node.id
 
             deco = env[name]
@@ -72,6 +74,5 @@ class end_rewrite(Pass):
             else:
                 decorators.append(node)
 
-        tree.decorator_list = reversed(decorators)
-        tree = ast.fix_missing_locations(tree)
+        tree = tree.replace(decorator_list=tuple(reversed(decorators)))
         return exec_def_in_file(tree, env, self.path)
