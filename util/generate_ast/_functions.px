@@ -100,7 +100,7 @@ class NodeTransformer(NodeVisitor):
                         value = self.visit(value)
                         if value is None:
                             continue
-                        elif not isinstance(item, AST):
+                        elif not isinstance(value, AST):
                             new_value.extend(value)
                             continue
                     new_value.append(value)
