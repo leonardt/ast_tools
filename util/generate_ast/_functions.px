@@ -93,7 +93,7 @@ class NodeTransformer(NodeVisitor):
     def generic_visit(self, node):
         kwargs = {}
         for field, old_value in iter_fields(node):
-            if instance(old_value, tuple):
+            if isinstance(old_value, tuple):
                 new_value = []
                 for value in old_value:
                     if isinstance(value, AST):
