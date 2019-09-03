@@ -1,0 +1,19 @@
+__ALL__ += ['ImmutableMeta']
+
+class ImmutableMeta(type):
+    _immutable_to_mutable = dict()
+    _mutable_to_immutable = dict()
+    def __new__(mcs, name, bases, namespace, mutable, **kwargs):
+        cls = super().__new__(mcs, name, bases, namespace, **kwargs)
+        ImmutableMeta._immutable_to_mutable[cls] = mutable
+        ImmutableMeta._mutable_to_immutable[mutable] = cls
+
+        return cls
+
+    def __instancecheck__(cls, instance):
+        return super().__instancecheck__(instance)\
+                or isinstance(instance, ImmutableMeta._immutable_to_mutable[cls])
+
+    def __subclasscheck__(cls, type_):
+        return super().__subclasscheck__(type_)\
+                or issubclass(type_, ImmutableMeta._immutable_to_mutable[cls])
