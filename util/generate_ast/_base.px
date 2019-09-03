@@ -1,6 +1,6 @@
 class AST(mutable=ast.AST, metaclass=ImmutableMeta):
     def replace(self, **kwargs):
-        args = {field: getattr(self, field) for field in self._fields}
+        args = dict(iter_fields(self))
         args.update(kwargs)
         return type(self)(**args)
 
