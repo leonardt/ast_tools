@@ -1,4 +1,5 @@
 import typing as tp
+import weakref
 
 from ast_tools import immutable_ast as iast
 from ast_tools.common import gen_free_name
@@ -7,7 +8,7 @@ from . import Pass
 from . import PASS_ARGS_T
 import sys
 
-INFO = {}
+INFO = weakref.WeakKeyDictionary()
 
 def dump_with_module(tree: iast.AST, module: str):
     '''
