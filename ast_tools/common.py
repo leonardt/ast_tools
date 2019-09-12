@@ -1,4 +1,5 @@
 import functools
+import importlib.util
 import inspect
 import itertools
 import logging
@@ -11,7 +12,6 @@ import weakref
 import astor
 
 from ast_tools import immutable_ast as iast
-from ast_tools import stack
 from ast_tools.stack import SymbolTable
 from ast_tools.visitors import used_names
 
@@ -23,29 +23,30 @@ def exec_def_in_file(
         tree: DefStmt,
         st: SymbolTable,
         path: tp.Optional[str] = None,
-        file_name: tp.Optional[str] = None) -> None:
+        file_name: tp.Optional[str] = None,
+        bypass_importer: tp.Optional[bool] = None,
+        ) -> tp.Union[tp.Callable, type]:
     """
     execs a definition in a file and returns the definiton
     """
     if file_name is None:
         file_name = tree.name + '.py'
 
-    return exec_in_file(tree, st, path, file_name)[tree.name]
+    if bypass_importer:
+        return exec_tree_in_file(tree, st, path, file_name)[tree.name]
+    else:
+        return getattr(import_tree_from_file(tree, st, path, file_name, tree.name), tree.name)
 
 
-def exec_in_file(
+def write_tree_to_file(
         tree: iast.AST,
         st: SymbolTable,
+        file_name: str,
         path: tp.Optional[str] = None,
-        file_name: tp.Optional[str] = None) -> None:
+        ) -> tp.Tuple[str, str]:
 
-    """
-    execs a definition in a file
-    """
     if path is None:
         path = '.ast_tools'
-    if file_name is None:
-        file_name = f'ast_tools_exec_{hash(tree)}.py'
 
     tree = iast.mutable(tree)
     source = astor.to_source(tree)
@@ -53,6 +54,56 @@ def exec_in_file(
     os.makedirs(path, exist_ok=True)
     with open(file_name, 'w') as fp:
         fp.write(source)
+    return file_name, source
+
+
+def _is_dunder(name):
+    return (len(name) >= 4
+            and name[:2] == name[-2:] == '__'
+            and name[3] != '_'
+            and name[-3:] != '_')
+
+
+def import_tree_from_file(
+        tree: iast.AST,
+        st: SymbolTable,
+        path: tp.Optional[str] = None,
+        file_name: tp.Optional[str] = None,
+        mod_name: tp.Optional[str] = None
+    ):
+    """
+    write a definition in a file then imports it
+    """
+    if mod_name is None:
+        mod_name = f'mod_{hash(tree)}'
+
+    if file_name is None:
+        file_name = mod_name + '.py'
+
+    file_name, _ = write_tree_to_file(tree, st, file_name, path)
+
+    spec = importlib.util.spec_from_file_location(mod_name, file_name)
+    mod = importlib.util.module_from_spec(spec)
+    mod.__dict__.update({k: v for k,v in st.items() if not _is_dunder(k)})
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def exec_tree_in_file(
+        tree: iast.AST,
+        st: SymbolTable,
+        path: tp.Optional[str] = None,
+        file_name: tp.Optional[str] = None,
+        ):
+
+    """
+    execs a definition in a file
+
+    """
+    if file_name is None:
+        file_name = f'exec_{hash(tree)}.py'
+
+    file_name, source = write_tree_to_file(tree, st, file_name, path)
 
     try:
         code = compile(source, filename=file_name, mode='exec')

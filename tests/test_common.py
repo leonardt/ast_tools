@@ -1,5 +1,6 @@
 from ast_tools import immutable_ast as iast
 from ast_tools.common import get_ast, gen_free_name, gen_free_prefix
+from ast_tools.common import exec_tree_in_file, import_tree_from_file
 from ast_tools.stack import SymbolTable
 from ast_tools.passes import begin_rewrite, end_rewrite
 
@@ -55,14 +56,35 @@ P1 = P0()
     assert free_prefix == 'P2'
 
 def test_exec_in_file():
-    x = 3
-    def foo():
-        return x
-    assert foo() == 3
+    src = '''
+x = 1
+y = 'foo'
+z = None
+def bar():
+    return w
+'''
+    env = SymbolTable({'w': 'bar'}, {})
+    tree = iast.parse(src)
 
-    @end_rewrite()
-    @begin_rewrite()
-    def foo():
-        return x
+    d = exec_tree_in_file(tree, env)
+    assert d['x'] == 1
+    assert d['y'] == 'foo'
+    assert d['z'] is None
+    assert d['bar']() == 'bar'
 
-    assert foo() == 3
+def test_import_from_file():
+    src = '''
+x = 1
+y = 'foo'
+z = None
+def bar():
+    return w
+'''
+    env = SymbolTable({'w': 'bar'}, {})
+    tree = iast.parse(src)
+
+    mod = import_tree_from_file(tree, env)
+    assert mod.x == 1
+    assert mod.y == 'foo'
+    assert mod.z is None
+    assert mod.bar() == 'bar'

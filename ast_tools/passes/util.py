@@ -7,6 +7,7 @@ from . import PASS_ARGS_T
 from ast_tools import immutable_ast as iast
 from ast_tools.stack import get_symbol_table, SymbolTable
 from ast_tools.common import get_ast, exec_def_in_file
+from ast_tools.instrumentation import INFO
 
 __ALL__ = ['begin_rewrite', 'end_rewrite']
 
@@ -14,14 +15,23 @@ class begin_rewrite:
     """
     begins a chain of passes
     """
-    def __init__(self, debug=False):
+    def __init__(self, debug=False, clean_up=True):
         env = get_symbol_table([self.__init__])
         self.env = env
         self.debug = debug
+        self.clean_up = clean_up
 
     def __call__(self, fn) -> PASS_ARGS_T:
-        tree = get_ast(fn)
-        tree = iast.immutable(tree)
+        if fn in INFO:
+            info = INFO[fn]
+            tree = info['ast']
+            self.env = SymbolTable(*info['env'])
+            if self.clean_up:
+                del INFO[fn]
+        else:
+            tree = get_ast(fn)
+            tree = iast.immutable(tree)
+
         metadata = {}
         if self.debug:
             metadata["source_filename"] = inspect.getsourcefile(fn)
@@ -57,10 +67,14 @@ class end_rewrite(Pass):
                 continue
 
             if isinstance(node, iast.Call):
-                name = node.func.id
+                node_ = node.func
+                while isinstance(node_, iast.Attribute):
+                    node_=node_.value
             else:
-                assert isinstance(node, iast.Name)
-                name = node.id
+                node_ = node
+
+            assert isinstance(node_, iast.Name), node_
+            name = node_.id
 
             deco = env[name]
             if in_group:
