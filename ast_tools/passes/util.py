@@ -25,7 +25,11 @@ class begin_rewrite:
         if fn in INFO:
             info = INFO[fn]
             tree = info['ast']
-            self.env = SymbolTable(*info['env'])
+            try:
+                self.env = SymbolTable(*info['env'])
+            except KeyError():
+                pass
+
             if self.clean_up:
                 del INFO[fn]
         else:

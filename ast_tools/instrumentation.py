@@ -6,12 +6,12 @@ from ast_tools.passes import InstrumentationPass
 from ast_tools.passes.instrumentation import INFO
 
 _active = False
-def activate():
+def activate(store_env: bool = True):
     global _active
     if not _active:
         _active = True
         sys.meta_path.insert(0, RewriteImporter)
-        module_passes.append(InstrumentationPass())
+        module_passes.append(InstrumentationPass(store_env))
 
 def deactivate():
     global _active
