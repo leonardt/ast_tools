@@ -38,53 +38,38 @@ def dump_with_module(tree: iast.AST, module: str):
 
 
 class Instrumentator(iast.NodeTransformer):
-    def __init__(self, import_name, env_name):
+    def __init__(self, import_name, store_env):
         self.import_name = import_name
-        self.env_name = env_name
+        self.store_env = store_env
 
     def handle_def(self, node: iast.stmt):
         new_node = self.generic_visit(node)
-
-
 
         # import ast_tools
         import_node = iast.Import(
             names=[iast.alias('ast_tools', self.import_name)]
         )
 
-        # store the ast and env
-        if self.env_name is not None:
-            # store locals global
-            env_node = iast.parse(f'{self.env_name} = locals(), globals()').body[0]
+        # store the ast
+        args =[dump_with_module(node, self.import_name + '.immutable_ast')]
+        if self.store_env:
+            # store the env
+            args.append('(locals(), globals())')
 
-            # store ast/env
-            store_node = iast.parse(f'''
-{self.import_name}.instrumentation.INFO[{new_node.name}] = {{
-    'ast': {dump_with_module(node, self.import_name + '.immutable_ast')},
-    'env': {self.env_name},
-}}''').body[0]
+        args = ', '.join(args)
+        mark = f'{self.import_name}.passes.instrumentation.mark'
+        mark_node = iast.parse(f'{mark}({args})').body[0].value
+        assert isinstance(mark_node, iast.Call)
+        #decorate the new_node with mark
+        new_node = new_node.replace(decorator_list=new_node.decorator_list+(mark_node,))
 
-            # del ast_tools /  env
-            del_node = iast.Delete(targets=[
-                iast.Name(self.import_name,  iast.Del()),
-                iast.Name(self.env_name, iast.Del()),
-                ])
 
-            return [env_node, new_node, import_node, store_node, del_node]
+        # del ast_tools
+        del_node = iast.Delete(targets=[
+            iast.Name(self.import_name,  iast.Del()),
+            ])
 
-        else:
-            # store ast
-            store_node = iast.parse(f'''
-{self.import_name}.instrumentation.INFO[{new_node.name}] = {{
-    'ast': {dump_with_module(node, self.import_name + '.immutable_ast')},
-}}''').body[0]
-
-            # del ast_tools
-            del_node = iast.Delete(targets=[
-                iast.Name(self.import_name,  iast.Del()),
-                ])
-
-            return [new_node, import_node, store_node, del_node]
+        return [import_node, new_node, del_node]
 
 
     def visit_ClassDef(self, node: iast.ClassDef):
@@ -106,10 +91,16 @@ class InstrumentationPass(Pass):
             metadata: tp.MutableMapping,
             ) -> PASS_ARGS_T:
         import_name = gen_free_name(tree, env, 'ast_tools')
-        if self.store_env:
-            env_name = gen_free_name(tree, env, 'env')
-        else:
-            env_name = None
-        instrumentator = Instrumentator(import_name, env_name)
+        instrumentator = Instrumentator(import_name, self.store_env)
         tree = instrumentator.visit(tree)
         return tree, env, metadata
+
+def mark(tree, env=None):
+    def wrapper(obj):
+        if env is not None:
+            INFO[obj] = {'ast': tree, 'env': env}
+        else:
+            INFO[obj] = {'ast': tree}
+
+        return obj
+    return wrapper
