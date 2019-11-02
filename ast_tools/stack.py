@@ -93,7 +93,7 @@ def inspect_enclosing_env(
         fn: tp.Callable, # tp.Callable[[tp.Dict[str, tp.Any], ...], tp.Any],
         *,
         decorators: tp.Optional[tp.Sequence[inspect.FrameInfo]] = None,
-        ) -> tp.Callable:
+        st: tp.Optional[SymbolTable] = None) -> tp.Callable:
     exec(_SKIP_FRAME_DEBUG_STMT)
     if decorators is None:
         decorators = ()
@@ -101,10 +101,11 @@ def inspect_enclosing_env(
     @functools.wraps(fn)
     def wrapped_0(*args, **kwargs):
         exec(_SKIP_FRAME_DEBUG_STMT)
-        st = get_symbol_table(list(itertools.chain(decorators, [wrapped_0])))
-        env = dict(st.globals)
-        env.update(st.locals)
-        return fn(env, *args, **kwargs)
-    return wrapped_0
 
+        _st = st or get_symbol_table(list(itertools.chain(decorators, [wrapped_0])))
+        env = dict(_st.globals)
+        env.update(_st.locals)
+        return fn(env, *args, **kwargs)
+
+    return wrapped_0
 
