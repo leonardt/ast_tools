@@ -55,3 +55,10 @@ def test_inspect_enclosing_env():
     stack._SKIP_FRAME_DEBUG_FAIL = False
     test()
 
+def test_custom_env():
+    def test(env):
+        assert env['MAGIC'] == 'bar'
+
+    st = stack.SymbolTable(locals={},globals={'MAGIC':'bar'})
+    test = stack.inspect_enclosing_env(test, st=st)
+    test()
