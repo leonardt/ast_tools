@@ -56,9 +56,11 @@ def test_inspect_enclosing_env():
     test()
 
 def test_custom_env():
+    MAGIC1 = 'foo'
     def test(env):
-        assert env['MAGIC'] == 'bar'
+        assert env['MAGIC1'] == 'foo'
+        assert env['MAGIC2'] == 'bar'
 
-    st = stack.SymbolTable(locals={},globals={'MAGIC':'bar'})
+    st = stack.SymbolTable(locals={},globals={'MAGIC2':'bar'})
     test = stack.inspect_enclosing_env(test, st=st)
     test()
