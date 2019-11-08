@@ -102,7 +102,10 @@ def inspect_enclosing_env(
     def wrapped_0(*args, **kwargs):
         exec(_SKIP_FRAME_DEBUG_STMT)
 
-        _st = st or get_symbol_table(list(itertools.chain(decorators, [wrapped_0])))
+        _st = get_symbol_table(list(itertools.chain(decorators, [wrapped_0])))
+        if st is not None:
+            _st.locals.update(st)
+
         env = dict(_st.globals)
         env.update(_st.locals)
         return fn(env, *args, **kwargs)
