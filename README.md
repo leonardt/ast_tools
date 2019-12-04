@@ -25,6 +25,8 @@ of the function definition)
 
 For example, 
 ```python
+from ast_tools.passes import begin_rewrite, loop_unroll, end_rewrite
+
 @end_rewrite()
 @loop_unroll()
 @begin_rewrite()
@@ -48,6 +50,8 @@ def foo():
 You can also use a list of `int`s, here's an example that also uses a reference
 to a variable defined in the outer scope:
 ```python
+from ast_tools.passes import begin_rewrite, loop_unroll, end_rewrite
+
 j = [1, 2, 3]
 @end_rewrite()
 @loop_unroll()
