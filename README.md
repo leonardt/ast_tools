@@ -14,7 +14,7 @@ pip install ast_tools
 # Macros
 ## Loop Unrolling
 Unroll loops using the pattern
-```
+```python
 for <var> in ast_tools.macros.unroll(<iter>):
     ...
 ```
@@ -24,7 +24,7 @@ that can be evaluated at definition time (can refer to variables in the scope
 of the function definition)
 
 For example, 
-```
+```python
 @end_rewrite()
 @loop_unroll()
 @begin_rewrite()
@@ -33,7 +33,7 @@ def foo():
         print(i)
 ```
 is rewritten into
-```
+```python
 def foo():
     print(0)
     print(1)
