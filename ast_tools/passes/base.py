@@ -8,6 +8,7 @@ __ALL__ = ['Pass', 'PASS_ARGS_T']
 
 PASS_ARGS_T = tp.Tuple[ast.AST, SymbolTable, tp.MutableMapping]
 
+
 class Pass(metaclass=ABCMeta):
     """
     Abstract base class for passes
@@ -19,11 +20,10 @@ class Pass(metaclass=ABCMeta):
 
     @abstractmethod
     def rewrite(self,
-            env: SymbolTable,
-            tree: ast.AST,
-            metadata: tp.MutableMapping,
-            ) -> PASS_ARGS_T:
-
+                tree: ast.AST,
+                env: SymbolTable,
+                metadata: tp.MutableMapping,
+                ) -> PASS_ARGS_T:
         """
         Type annotation here should be followed except on terminal passes e.g.
         end_rewite
