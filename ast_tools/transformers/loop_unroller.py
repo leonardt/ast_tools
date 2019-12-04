@@ -36,6 +36,9 @@ class Unroller(ast.NodeTransformer):
         if is_constant and isinstance(iter_obj, unroll):
             body = []
             for i in iter_obj:
+                if not isinstance(i, int):
+                    raise NotImplementedError("Unrolling over iterator of"
+                                              "non-int")
                 symbol_table = {node.target.id: ast.Num(i)}
                 for child in node.body:
                     body.append(

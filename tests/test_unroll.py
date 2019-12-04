@@ -4,6 +4,7 @@ import astor
 from ast_tools.transformers.loop_unroller import unroll_for_loops
 from ast_tools.passes import begin_rewrite, end_rewrite, loop_unroll
 import ast_tools
+import pytest
 
 
 def test_basic_unroll():
@@ -170,3 +171,31 @@ def test_pass_no_rewrite_range():
                 count += 1
         return count
     assert foo() == 3 * 3
+
+
+def test_bad_iter():
+    with pytest.raises(Exception):
+        @end_rewrite()
+        @loop_unroll()
+        @begin_rewrite()
+        def foo():
+            count = 0
+            for k in ast_tools.macros.unroll([object(), object()]):
+                count += 1
+            return count
+
+
+def test_list_of_ints():
+    j = [1, 2, 3]
+    @end_rewrite()
+    @loop_unroll()
+    @begin_rewrite()
+    def foo():
+        for i in ast_tools.macros.unroll(j):
+            print(i)
+    assert inspect.getsource(foo) == """\
+def foo():
+    print(1)
+    print(2)
+    print(3)
+"""
