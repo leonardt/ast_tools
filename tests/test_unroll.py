@@ -138,3 +138,21 @@ def foo():
     for i in range(j):
         print(i)
 """
+
+
+def test_pass_no_unroll_nested():
+    j = 3
+    @end_rewrite()
+    @loop_unroll()
+    @begin_rewrite()
+    def foo():
+        for i in range(j):
+            for k in range(3, unroll=True):
+                print(i * k)
+    assert inspect.getsource(foo) == """\
+def foo():
+    for i in range(j):
+        print(i * 0)
+        print(i * 1)
+        print(i * 2)
+"""
