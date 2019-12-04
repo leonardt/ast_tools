@@ -2,7 +2,7 @@ import ast
 from copy import deepcopy
 import astor
 from .symbol_replacer import replace_symbols
-from ..macros import RANGE
+from ..macros import unroll
 
 
 def is_call(node):
@@ -29,13 +29,13 @@ class Unroller(ast.NodeTransformer):
 
     def visit_For(self, node):
         try:
-            range_object = eval(astor.to_source(node.iter), {}, self.env)
+            iter_obj = eval(astor.to_source(node.iter), {}, self.env)
             is_constant = True
         except Exception as e:
             is_constant = False
-        if is_constant and isinstance(range_object, RANGE):
+        if is_constant and isinstance(iter_obj, unroll):
             body = []
-            for i in range_object:
+            for i in iter_obj:
                 symbol_table = {node.target.id: ast.Num(i)}
                 for child in node.body:
                     body.append(
