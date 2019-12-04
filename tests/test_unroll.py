@@ -128,6 +128,25 @@ def foo():
 """
 
 
+def test_pass_nested():
+    @end_rewrite()
+    @loop_unroll()
+    @begin_rewrite()
+    def foo():
+        for i in ast_tools.macros.unroll(range(2)):
+            for j in ast_tools.macros.unroll(range(3)):
+                print(i + j)
+    assert inspect.getsource(foo) == """\
+def foo():
+    print(0 + 0)
+    print(0 + 1)
+    print(0 + 2)
+    print(1 + 0)
+    print(1 + 1)
+    print(1 + 2)
+"""
+
+
 def test_pass_no_unroll():
     j = 3
     @end_rewrite()

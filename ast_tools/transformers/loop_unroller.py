@@ -44,7 +44,7 @@ class Unroller(ast.NodeTransformer):
                     body.append(
                         replace_symbols(deepcopy(child), symbol_table)
                     )
-            return body
+            return self.flat_visit(body)
         return super().generic_visit(node)
 
 
