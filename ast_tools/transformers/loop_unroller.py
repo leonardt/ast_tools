@@ -17,17 +17,8 @@ class Unroller(ast.NodeTransformer):
     def __init__(self, env):
         self.env = env
 
-    def flat_visit(self, body):
-        new_body = []
-        for statement in body:
-            result = self.visit(statement)
-            if isinstance(result, list):
-                new_body.extend(result)
-            else:
-                new_body.append(result)
-        return new_body
-
     def visit_For(self, node):
+        node = super().generic_visit(node)
         try:
             iter_obj = eval(astor.to_source(node.iter), {}, self.env)
             is_constant = True
@@ -44,8 +35,8 @@ class Unroller(ast.NodeTransformer):
                     body.append(
                         replace_symbols(deepcopy(child), symbol_table)
                     )
-            return self.flat_visit(body)
-        return super().generic_visit(node)
+            return body
+        return node
 
 
 def unroll_for_loops(tree, env):
