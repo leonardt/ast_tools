@@ -2,13 +2,7 @@ import ast
 from copy import deepcopy
 import astor
 from .symbol_replacer import replace_symbols
-
-
-class UnrollException(Exception):
-    def __init__(self, execption):
-        message = f"Unable to evaluate `unroll_range` object during " \
-            f"unrolling pass, got exception {execption}"
-        super().__init__(message)
+from ..macros import RANGE
 
 
 def is_call(node):
@@ -33,27 +27,13 @@ class Unroller(ast.NodeTransformer):
                 new_body.append(result)
         return new_body
 
-    def is_unroll_kwarg(self, keyword):
-        return keyword.arg == "unroll" and \
-            isinstance(keyword.value, ast.NameConstant) and \
-            keyword.value.value is True
-
-    def is_unroll_range(self, node):
-        if not is_call(node) and is_name(node.func) and \
-                node.func.id == "range":
-            return False
-        return any(map(self.is_unroll_kwarg, node.keywords))
-
     def visit_For(self, node):
-        if self.is_unroll_range(node.iter):
-            node.iter.keywords = list(filter(
-                lambda x: not self.is_unroll_kwarg(x),
-                node.iter.keywords
-            ))
-            try:
-                range_object = eval(astor.to_source(node.iter), {}, self.env)
-            except Exception as e:
-                raise UnrollException(e)
+        try:
+            range_object = eval(astor.to_source(node.iter), {}, self.env)
+            is_constant = True
+        except Exception as e:
+            is_constant = False
+        if is_constant and isinstance(range_object, RANGE):
             body = []
             for i in range_object:
                 symbol_table = {node.target.id: ast.Num(i)}

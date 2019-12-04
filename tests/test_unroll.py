@@ -3,15 +3,16 @@ import ast
 import astor
 from ast_tools.transformers.loop_unroller import unroll_for_loops
 from ast_tools.passes import begin_rewrite, end_rewrite, loop_unroll
+import ast_tools
 
 
 def test_basic_unroll():
     tree = ast.parse("""
 def foo():
-    for i in range(8, unroll=True):
+    for i in ast_tools.macros.RANGE(8):
         print(i)
 """)
-    assert astor.to_source(unroll_for_loops(tree, {})) == """\
+    assert astor.to_source(unroll_for_loops(tree, globals())) == """\
 def foo():
     print(0)
     print(1)
@@ -28,15 +29,15 @@ def test_basic_inside_if():
     tree = ast.parse("""
 def foo(x):
     if x:
-        for i in range(8, unroll=True):
+        for i in ast_tools.macros.RANGE(8):
             print(i)
         return x + 1 if x % 2 else x
     else:
         print(x)
-        for j in range(2, unroll=True):
+        for j in ast_tools.macros.RANGE(2):
             print(j - 1)
 """)
-    assert astor.to_source(unroll_for_loops(tree, {})) == """\
+    assert astor.to_source(unroll_for_loops(tree, globals())) == """\
 def foo(x):
     if x:
         print(0)
@@ -59,10 +60,10 @@ def test_basic_inside_while():
     tree = ast.parse("""
 def foo(x):
     while True:
-        for i in range(8, unroll=True):
+        for i in ast_tools.macros.RANGE(8):
             print(i)
 """)
-    assert astor.to_source(unroll_for_loops(tree, {})) == """\
+    assert astor.to_source(unroll_for_loops(tree, globals())) == """\
 def foo(x):
     while True:
         print(0)
@@ -79,10 +80,11 @@ def foo(x):
 def test_basic_env():
     tree = ast.parse("""
 def foo(x):
-    for i in range(j, unroll=True):
+    for i in ast_tools.macros.RANGE(j):
         print(i)
 """)
-    assert astor.to_source(unroll_for_loops(tree, {"j": 2})) == """\
+    env = dict(globals(), **{"j": 2})
+    assert astor.to_source(unroll_for_loops(tree, env)) == """\
 def foo(x):
     print(0)
     print(1)
@@ -94,7 +96,7 @@ def test_pass_basic():
     @loop_unroll()
     @begin_rewrite()
     def foo():
-        for i in range(8, unroll=True):
+        for i in ast_tools.macros.RANGE(8):
             print(i)
     assert inspect.getsource(foo) == """\
 def foo():
@@ -115,7 +117,7 @@ def test_pass_env():
     @loop_unroll()
     @begin_rewrite()
     def foo():
-        for i in range(j, unroll=True):
+        for i in ast_tools.macros.RANGE(j):
             print(i)
     assert inspect.getsource(foo) == """\
 def foo():
@@ -147,7 +149,7 @@ def test_pass_no_unroll_nested():
     @begin_rewrite()
     def foo():
         for i in range(j):
-            for k in range(3, unroll=True):
+            for k in ast_tools.macros.RANGE(3):
                 print(i * k)
     assert inspect.getsource(foo) == """\
 def foo():
@@ -156,3 +158,15 @@ def foo():
         print(i * 1)
         print(i * 2)
 """
+
+
+def test_pass_no_rewrite_range():
+    j = 3
+
+    def foo():
+        count = 0
+        for i in range(j):
+            for k in ast_tools.macros.RANGE(3):
+                count += 1
+        return count
+    assert foo() == 3 * 3
