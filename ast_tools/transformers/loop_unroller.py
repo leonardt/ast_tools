@@ -52,11 +52,23 @@ def unroll_for_loops(tree, env):
                 node.orelse = self.flat_visit(node.orelse)
             return super().visit(node)
 
+        def is_unroll_kwarg(self, keyword):
+            return keyword.arg == "unroll" and \
+                isinstance(keyword.value, ast.NameConstant) and \
+                keyword.value.value is True
+
+        def is_unroll_range(self, node):
+            if not is_call(node) and is_name(node.func) and \
+                    node.func.id == "range":
+                return False
+            return any(map(self.is_unroll_kwarg, node.keywords))
+
         def visit_For(self, node):
-            if is_call(node.iter) and is_name(node.iter.func) and \
-                    node.iter.func.id == "unroll_range":
+            if self.is_unroll_range(node.iter):
+                node.iter.keywords = list(filter(lambda x: not
+                                                 self.is_unroll_kwarg(x),
+                                                 node.iter.keywords))
                 try:
-                    node.iter.func.id = "range"
                     range_object = eval(astor.to_source(node.iter), {}, env)
                 except Exception as e:
                     raise UnrollException(e)

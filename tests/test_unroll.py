@@ -8,7 +8,7 @@ from ast_tools.passes import begin_rewrite, end_rewrite, loop_unroll
 def test_basic_unroll():
     tree = ast.parse("""
 def foo():
-    for i in unroll_range(8):
+    for i in range(8, unroll=True):
         print(i)
 """)
     assert astor.to_source(unroll_for_loops(tree, {})) == """\
@@ -28,12 +28,12 @@ def test_basic_inside_if():
     tree = ast.parse("""
 def foo(x):
     if x:
-        for i in unroll_range(8):
+        for i in range(8, unroll=True):
             print(i)
         return x + 1 if x % 2 else x
     else:
         print(x)
-        for j in unroll_range(2):
+        for j in range(2, unroll=True):
             print(j - 1)
 """)
     assert astor.to_source(unroll_for_loops(tree, {})) == """\
@@ -59,7 +59,7 @@ def test_basic_inside_while():
     tree = ast.parse("""
 def foo(x):
     while True:
-        for i in unroll_range(8):
+        for i in range(8, unroll=True):
             print(i)
 """)
     assert astor.to_source(unroll_for_loops(tree, {})) == """\
@@ -79,7 +79,7 @@ def foo(x):
 def test_basic_env():
     tree = ast.parse("""
 def foo(x):
-    for i in unroll_range(j):
+    for i in range(j, unroll=True):
         print(i)
 """)
     assert astor.to_source(unroll_for_loops(tree, {"j": 2})) == """\
@@ -94,7 +94,7 @@ def test_pass_basic():
     @loop_unroll()
     @begin_rewrite()
     def foo():
-        for i in unroll_range(8):
+        for i in range(8, unroll=True):
             print(i)
     assert inspect.getsource(foo) == """\
 def foo():
@@ -115,7 +115,7 @@ def test_pass_env():
     @loop_unroll()
     @begin_rewrite()
     def foo():
-        for i in unroll_range(j):
+        for i in range(j, unroll=True):
             print(i)
     assert inspect.getsource(foo) == """\
 def foo():
