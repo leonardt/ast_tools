@@ -123,3 +123,18 @@ def foo():
     print(1)
     print(2)
 """
+
+
+def test_pass_no_unroll():
+    j = 3
+    @end_rewrite()
+    @loop_unroll()
+    @begin_rewrite()
+    def foo():
+        for i in range(j):
+            print(i)
+    assert inspect.getsource(foo) == """\
+def foo():
+    for i in range(j):
+        print(i)
+"""
