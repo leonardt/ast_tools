@@ -65,9 +65,10 @@ def unroll_for_loops(tree, env):
 
         def visit_For(self, node):
             if self.is_unroll_range(node.iter):
-                node.iter.keywords = list(filter(lambda x: not
-                                                 self.is_unroll_kwarg(x),
-                                                 node.iter.keywords))
+                node.iter.keywords = list(filter(
+                    lambda x: not self.is_unroll_kwarg(x),
+                    node.iter.keywords
+                ))
                 try:
                     range_object = eval(astor.to_source(node.iter), {}, env)
                 except Exception as e:
