@@ -38,8 +38,8 @@ class end_rewrite(Pass):
     """
     ends a chain of passes
     """
-    def __init__(self, path: tp.Optional[str] = None):
-        self.path = path
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
 
     def rewrite(self,
             tree: ast.AST,
@@ -74,4 +74,4 @@ class end_rewrite(Pass):
 
         tree.decorator_list = reversed(decorators)
         tree = ast.fix_missing_locations(tree)
-        return exec_def_in_file(tree, env, self.path)
+        return exec_def_in_file(tree, env, **self.kwargs)

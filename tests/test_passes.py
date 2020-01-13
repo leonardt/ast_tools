@@ -30,7 +30,7 @@ def foo():
 
 def test_debug(capsys):
 
-    @end_rewrite
+    @end_rewrite()
     @debug(dump_source_filename=True, dump_source_lines=True)
     @begin_rewrite(debug=True)
     def foo():
@@ -41,7 +41,7 @@ BEGIN SOURCE_FILENAME
 END SOURCE_FILENAME
 
 BEGIN SOURCE_LINES
-33:    @end_rewrite
+33:    @end_rewrite()
 34:    @debug(dump_source_filename=True, dump_source_lines=True)
 35:    @begin_rewrite(debug=True)
 36:    def foo():
