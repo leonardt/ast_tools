@@ -28,7 +28,7 @@ def exec_def_in_file(
     execs a definition in a file and returns the definiton
     """
     if file_name is None:
-        file_name = tree.name + '.py'
+        file_name = tree.name + f'{hash(tree)}.py'
 
     return exec_in_file(tree, st, path, file_name)[tree.name]
 
