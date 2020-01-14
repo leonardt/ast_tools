@@ -52,7 +52,7 @@ setup(
     url='https://github.com/leonardt/ast_tools',
     author='Leonard Truong',
     author_email='lenny@cs.stanford.edu',
-    version='0.0.12',
+    version='0.0.13',
     description='Toolbox for working with the Python AST',
     scripts=[],
     packages=[
