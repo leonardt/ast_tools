@@ -1,23 +1,46 @@
 import ast
 from collections import ChainMap, Counter
+from copy import deepcopy
 import typing as tp
 
 from . import Pass
 from . import PASS_ARGS_T
-from ast_tools.common import gen_free_prefix, is_free_name
+from ast_tools.common import gen_free_prefix, gen_free_name, is_free_name
+from ast_tools.immutable_ast import immutable, mutable
 from ast_tools.stack import SymbolTable
 from ast_tools.transformers import Renamer
+from ast_tools.transformers.node_replacer import NodeReplacer
+from ast_tools.visitors import collect_targets
 
 __ALL__ = ['ssa']
 
+class AttrReplacer(NodeReplacer):
+    def _get_key(self, node):
+        if isinstance(node, ast.Attribute):
+            # Need the immutable value so its comparable
+            return immutable(node)
+        else:
+            return None
+
+def _flip_ctx(node):
+    node = deepcopy(node)
+    if isinstance(node.ctx, ast.Store):
+        node.ctx = ast.Load()
+    else:
+        assert isinstance(node.ctx, ast.Load)
+        node.ctx = ast.Store()
+    return node
+
 class SSATransformer(ast.NodeTransformer):
-    def __init__(self, env, return_value_prefx):
+    def __init__(self, env, return_value_prefix, attr_names):
+        self.attr_names = attr_names
+        self.attr_states = {name: [] for name in attr_names}
         self.env = env
         self.name_idx = Counter()
         self.name_table = ChainMap()
         self.root = None
         self.cond_stack = []
-        self.return_value_prefx = return_value_prefx
+        self.return_value_prefix = return_value_prefix
         self.returns = []
 
 
@@ -33,7 +56,7 @@ class SSATransformer(ast.NodeTransformer):
 
 
     def _make_return(self):
-        p = self.return_value_prefx
+        p = self.return_value_prefix
         name = p + str(self.name_idx[p])
         self.name_idx[p] += 1
         return name
@@ -56,6 +79,7 @@ class SSATransformer(ast.NodeTransformer):
             return super().generic_visit(node)
         else:
             return super().visit(node)
+
 
     def visit_Assign(self, node):
         # visit RHS first
@@ -159,6 +183,7 @@ class SSATransformer(ast.NodeTransformer):
         # only care about new / modified names
         t_nt = t_nt.maps[0]
         f_nt = f_nt.maps[0]
+
         if t_returns and f_returns:
             # No need to mux any names they can't fall through anyway
             pass
@@ -228,9 +253,15 @@ class SSATransformer(ast.NodeTransformer):
 
 
     def visit_Return(self, node: ast.Return) -> ast.Assign:
+        # Record the state of each attr_name
+        stack = list(self.cond_stack)
+        for name in self.attr_names:
+            self.attr_states[name].append((stack, self.name_table[name]))
+
+        # Record the return value
         r_val = self.visit(node.value)
         r_name = self._make_return()
-        self.returns.append((list(self.cond_stack), r_name))
+        self.returns.append((stack, r_name))
         return ast.Assign(
             targets=[ast.Name(r_name, ast.Store())],
             value=r_val,
@@ -325,7 +356,7 @@ def _always_returns(body: tp.Sequence[ast.stmt]) -> bool:
     return False
 
 
-def _build_return(
+def _fold_conditions(
         returns: tp.Sequence[tp.Tuple[tp.List[ast.expr], str]]) -> ast.expr:
     '''
     "Fold" ifExpr over a Sequence of conditons and names
@@ -342,7 +373,7 @@ def _build_return(
                 values=conditions,
             ),
             body=name,
-            orelse=_build_return(returns[1:]),
+            orelse=_fold_conditions(returns[1:]),
         )
         return expr
 
@@ -358,12 +389,60 @@ class ssa(Pass):
             metadata: tp.MutableMapping) -> PASS_ARGS_T:
         if not isinstance(tree, ast.FunctionDef):
             raise TypeError('ssa should only be applied to functions')
+
+        # Find all atributes that are written
+        targets = collect_targets(tree, ast.Attribute)
+        replacer = AttrReplacer({})
+        init_reads = set()
+        attr_names = {}
+        for t in targets:
+            if not isinstance(t.value, ast.Name):
+                raise NotImplementedError(f'Only supports writing attributes '
+                                          f'of Name not {type(t.value)}')
+            else:
+                name = ast.Name(
+                        id=gen_free_name(tree, env, '_'.join((t.value.id, t.attr))),
+                        ctx=ast.Store())
+                # store the maping of names to attrs
+                attr_names[name.id] = t
+                #replace writes to the attr with writes to the name
+                replacer.add_replacement(t, name)
+                #replace reads to the attr with reads to the name
+                replacer.add_replacement(_flip_ctx(t), _flip_ctx(name))
+
+                # read the init value
+                init_reads.add(
+                    immutable(ast.Assign(
+                        targets=[deepcopy(name)],
+                        value=_flip_ctx(t),
+                    ))
+                )
+
+        # Replace references to the attr with the name generated above
+        tree = replacer.visit(tree)
+
+        # insert initial reads
+        tree.body = [mutable(r) for r in init_reads] + tree.body
+
+        # Perform ssa
         r_name = gen_free_prefix(tree, env, self.return_prefix)
-        visitor = SSATransformer(env, r_name)
+        visitor = SSATransformer(env, r_name, attr_names.keys())
         tree = visitor.visit(tree)
+
+        #insert the write backs to the attrs
+        for name, conditons in visitor.attr_states.items():
+            tree.body.append(
+                ast.Assign(
+                    targets=[attr_names[name]],
+                    value=_fold_conditions(conditons)
+                )
+            )
+
+
+        # insert the return
         tree.body.append(
             ast.Return(
-                value=_build_return(visitor.returns)
+                value=_fold_conditions(visitor.returns)
             )
         )
         return tree, env, metadata

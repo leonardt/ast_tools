@@ -1,11 +1,14 @@
 import ast
 import inspect
+import random
 
 import pytest
 
 from ast_tools.common import exec_def_in_file
 from ast_tools.passes import begin_rewrite, end_rewrite, ssa, debug
 from ast_tools.stack import SymbolTable
+
+NTEST = 16
 
 basic_template = '''\
 def basic(x):
@@ -174,3 +177,102 @@ def foo(a, b, c):
     __return_value0 = a2, b2
     return __return_value0
 """
+
+class Thing:
+    def __init__(self, x=None):
+        self.x = x
+
+    def __eq__(self, other):
+        if isinstance(other, type(self)):
+            return self.x == other.x
+        else:
+            return self.x == other
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __repr__(self):
+        return f'Thing({self.x})'
+
+def test_attrs_basic():
+    def f1(t, cond):
+        old = t.x
+        if cond:
+            t.x = 1
+        else:
+            t.x = 0
+        return old
+
+    f2  = _do_ssa(f1, dump_ast=True, dump_src=True)
+
+    t1 = Thing()
+    t2 = Thing()
+
+    assert t1 == t2 == None
+    f1(t1, True)
+    assert t1 != t2
+    f2(t2, True)
+    assert t1 == t2 == 1
+    f1(t1, False)
+    assert t1 != t2
+    f2(t2, False)
+    assert t1 == t2 == 0
+
+
+def test_attrs_returns():
+    def f1(t, cond1, cond2):
+        if cond1:
+            t.x = 1
+            if cond2:
+                return 0
+        else:
+            t.x = 0
+            if cond2:
+                return 1
+        return -1
+
+    f2  = _do_ssa(f1, dump_src=True)
+
+    t1 = Thing()
+    t2 = Thing()
+    assert t1 == t2
+
+    for _ in range(NTEST):
+        c1 = random.randint(0, 1)
+        c2 = random.randint(0, 1)
+        o1 = f1(t1, c1, c2)
+        o2 = f2(t2, c1, c2)
+        assert o1 == o2
+        assert t1 == t2
+
+
+def test_attrs_class():
+    class Counter1:
+        def __init__(self, init, max):
+            self.cnt = init
+            self.max = max
+
+        def __call__(self, en):
+            if en and self.cnt < self.max - 1:
+                self.cnt = self.cnt + 1
+                return 1
+            elif en:
+                self.cnt = 0
+                return -1
+            return 0
+
+    class Counter2:
+        __init__ = Counter1.__init__
+        __call__ = _do_ssa(Counter1.__call__, dump_ast=True, dump_src=True)
+
+    c1 = Counter1(3, 5)
+    c2 = Counter2(3, 5)
+
+    assert c1.cnt == c2.cnt
+
+    for _ in range(NTEST):
+        e = random.randint(0, 1)
+        o1 = c1(e)
+        o2 = c2(e)
+        assert o1 == o2
+        assert c1.cnt == c2.cnt
