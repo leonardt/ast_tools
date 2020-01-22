@@ -7,3 +7,4 @@ from .ssa import *
 from .util import *
 from .loop_unroll import loop_unroll
 from .if_inline import if_inline
+from .write_attrs_once import write_attrs_once
