@@ -276,3 +276,38 @@ def test_attrs_class():
         o2 = c2(e)
         assert o1 == o2
         assert c1.cnt == c2.cnt
+
+def test_attrs_class_methods():
+    class Counter1:
+        def __init__(self, init, max):
+            self.cnt = init
+            self.max = max
+
+        def __call__(self, en):
+            if en and self.cnt < self.max - 1:
+                self.cnt = self.cnt + self.get_step(self.cnt)
+                return 1
+            elif en:
+                self.cnt = 0
+                return -1
+            return 0
+
+        def get_step(self, cnt):
+            return (cnt % 2) + 1
+
+    class Counter2:
+        __init__ = Counter1.__init__
+        __call__ = _do_ssa(Counter1.__call__, dump_ast=True, dump_src=True)
+        get_step = Counter1.get_step
+
+    c1 = Counter1(3, 5)
+    c2 = Counter2(3, 5)
+
+    assert c1.cnt == c2.cnt
+
+    for _ in range(NTEST):
+        e = random.randint(0, 1)
+        o1 = c1(e)
+        o2 = c2(e)
+        assert o1 == o2
+        assert c1.cnt == c2.cnt
