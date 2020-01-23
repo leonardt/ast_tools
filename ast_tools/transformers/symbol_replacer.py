@@ -1,17 +1,12 @@
 import ast
-from copy import deepcopy
+from .node_replacer import NodeReplacer
 
-
-class SymbolReplacer(ast.NodeTransformer):
-    def __init__(self, symbol_table):
-        self.symbol_table = symbol_table
-
-    def visit_Name(self, node):
-        if node.id in self.symbol_table:
-            # TODO: Remove deepcopy once immutable ast is merged
-            return deepcopy(self.symbol_table[node.id])
-        return node
-
+class SymbolReplacer(NodeReplacer):
+    def _get_key(self, node):
+        if isinstance(node, ast.Name):
+            return node.id
+        else:
+            return None
 
 def replace_symbols(tree, symbol_table):
     return SymbolReplacer(symbol_table).visit(tree)
