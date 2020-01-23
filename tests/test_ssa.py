@@ -21,19 +21,20 @@ def basic(x):
 
 template_options = ['r =', 'return']
 
-def _do_ssa(func, **kwargs):
+def _do_ssa(func, strict, **kwargs):
     for dec in (
             begin_rewrite(),
             debug(**kwargs),
-            ssa(),
+            ssa(strict),
             debug(**kwargs),
             end_rewrite()):
         func = dec(func)
     return func
 
-@pytest.mark.parametrize("a", template_options)
-@pytest.mark.parametrize("b", template_options)
-def test_basic_if(a, b):
+@pytest.mark.parametrize('strict', [True, False])
+@pytest.mark.parametrize('a', template_options)
+@pytest.mark.parametrize('b', template_options)
+def test_basic_if(strict, a, b):
     if a == b == 'return':
         final = ''
     else:
@@ -43,7 +44,7 @@ def test_basic_if(a, b):
     tree = ast.parse(src).body[0]
     env = SymbolTable({}, {})
     basic = exec_def_in_file(tree, env)
-    ssa_basic = _do_ssa(basic, dump_src=True)
+    ssa_basic = _do_ssa(basic, strict, dump_src=True)
 
     for x in (False, True):
         assert basic(x) == ssa_basic(x)
@@ -64,11 +65,12 @@ def nested(x, y):
     {}
 '''
 
-@pytest.mark.parametrize("a", template_options)
-@pytest.mark.parametrize("b", template_options)
-@pytest.mark.parametrize("c", template_options)
-@pytest.mark.parametrize("d", template_options)
-def test_nested(a,b,c,d):
+@pytest.mark.parametrize('strict', [True, False])
+@pytest.mark.parametrize('a', template_options)
+@pytest.mark.parametrize('b', template_options)
+@pytest.mark.parametrize('c', template_options)
+@pytest.mark.parametrize('d', template_options)
+def test_nested(strict, a, b, c, d):
     if a == b == c == d == 'return':
         final = ''
     else:
@@ -78,7 +80,7 @@ def test_nested(a,b,c,d):
     tree = ast.parse(src).body[0]
     env = SymbolTable({}, {})
     nested = exec_def_in_file(tree, env)
-    ssa_nested = _do_ssa(nested, dump_src=True)
+    ssa_nested = _do_ssa(nested, strict, dump_src=True)
 
     for x in (False, True):
         for y in (False, True):
@@ -97,11 +99,13 @@ def imbalanced(x, y):
 '''
 
 init_template_options = ['r = ', '0']
-@pytest.mark.parametrize("a", init_template_options)
-@pytest.mark.parametrize("b", init_template_options)
-@pytest.mark.parametrize("c", template_options)
-@pytest.mark.parametrize("d", template_options)
-def test_imbalanced(a, b, c, d):
+
+@pytest.mark.parametrize('strict', [True, False])
+@pytest.mark.parametrize('a', init_template_options)
+@pytest.mark.parametrize('b', init_template_options)
+@pytest.mark.parametrize('c', template_options)
+@pytest.mark.parametrize('d', template_options)
+def test_imbalanced(strict, a, b, c, d):
     src = imbalanced_template.format(a, b, c, d)
     tree = ast.parse(src).body[0]
     env = SymbolTable({}, {})
@@ -115,11 +119,11 @@ def test_imbalanced(a, b, c, d):
                 can_name_error = True
                 break
 
-    if can_name_error:
+    if can_name_error and strict:
         with pytest.raises(SyntaxError):
-            imbalanced_ssa = _do_ssa(imbalanced, dump_src=True)
-    else:
-        imbalanced_ssa = _do_ssa(imbalanced, dump_src=True)
+            imbalanced_ssa = _do_ssa(imbalanced, strict, dump_src=True)
+    elif not can_name_error:
+        imbalanced_ssa = _do_ssa(imbalanced, strict, dump_src=True)
         for x in (False, True):
             for y in (False, True):
                 assert imbalanced(x, y) == imbalanced_ssa(x, y)
@@ -136,13 +140,13 @@ def test_reassign_arg():
         if b:
             a = len(a)
         return a
-    assert inspect.getsource(foo) == """\
+    assert inspect.getsource(foo) == '''\
 def foo(a, b):
     a0 = len(a)
     a1 = a0 if b else a
     __return_value0 = a1
     return __return_value0
-"""
+'''
 
 
 def test_double_nested_function_call():
@@ -166,7 +170,7 @@ def test_double_nested_function_call():
             b = bar(b)
         return a, b
     print(inspect.getsource(foo))
-    assert inspect.getsource(foo) == """\
+    assert inspect.getsource(foo) == '''\
 def foo(a, b, c):
     a0 = bar(a)
     a1 = bar(a)
@@ -176,7 +180,7 @@ def foo(a, b, c):
     b2 = b0 if c else b1
     __return_value0 = a2, b2
     return __return_value0
-"""
+'''
 
 class Thing:
     def __init__(self, x=None):
@@ -194,7 +198,8 @@ class Thing:
     def __repr__(self):
         return f'Thing({self.x})'
 
-def test_attrs_basic():
+@pytest.mark.parametrize('strict', [True, False])
+def test_attrs_basic(strict):
     def f1(t, cond):
         old = t.x
         if cond:
@@ -203,7 +208,7 @@ def test_attrs_basic():
             t.x = 0
         return old
 
-    f2  = _do_ssa(f1, dump_ast=True, dump_src=True)
+    f2  = _do_ssa(f1, strict, dump_ast=True, dump_src=True)
 
     t1 = Thing()
     t2 = Thing()
@@ -219,7 +224,8 @@ def test_attrs_basic():
     assert t1 == t2 == 0
 
 
-def test_attrs_returns():
+@pytest.mark.parametrize('strict', [True, False])
+def test_attrs_returns(strict):
     def f1(t, cond1, cond2):
         if cond1:
             t.x = 1
@@ -231,7 +237,7 @@ def test_attrs_returns():
                 return 1
         return -1
 
-    f2  = _do_ssa(f1, dump_src=True)
+    f2  = _do_ssa(f1, strict, dump_src=True)
 
     t1 = Thing()
     t2 = Thing()
@@ -246,7 +252,8 @@ def test_attrs_returns():
         assert t1 == t2
 
 
-def test_attrs_class():
+@pytest.mark.parametrize('strict', [True, False])
+def test_attrs_class(strict):
     class Counter1:
         def __init__(self, init, max):
             self.cnt = init
@@ -255,15 +262,12 @@ def test_attrs_class():
         def __call__(self, en):
             if en and self.cnt < self.max - 1:
                 self.cnt = self.cnt + 1
-                return 1
             elif en:
                 self.cnt = 0
-                return -1
-            return 0
 
     class Counter2:
         __init__ = Counter1.__init__
-        __call__ = _do_ssa(Counter1.__call__, dump_ast=True, dump_src=True)
+        __call__ = _do_ssa(Counter1.__call__, strict, dump_ast=True, dump_src=True)
 
     c1 = Counter1(3, 5)
     c2 = Counter2(3, 5)
@@ -277,7 +281,8 @@ def test_attrs_class():
         assert o1 == o2
         assert c1.cnt == c2.cnt
 
-def test_attrs_class_methods():
+@pytest.mark.parametrize('strict', [True, False])
+def test_attrs_class_methods(strict):
     class Counter1:
         def __init__(self, init, max):
             self.cnt = init
@@ -286,18 +291,15 @@ def test_attrs_class_methods():
         def __call__(self, en):
             if en and self.cnt < self.max - 1:
                 self.cnt = self.cnt + self.get_step(self.cnt)
-                return 1
             elif en:
                 self.cnt = 0
-                return -1
-            return 0
 
         def get_step(self, cnt):
             return (cnt % 2) + 1
 
     class Counter2:
         __init__ = Counter1.__init__
-        __call__ = _do_ssa(Counter1.__call__, dump_ast=True, dump_src=True)
+        __call__ = _do_ssa(Counter1.__call__, strict, dump_ast=True, dump_src=True)
         get_step = Counter1.get_step
 
     c1 = Counter1(3, 5)
@@ -311,3 +313,29 @@ def test_attrs_class_methods():
         o2 = c2(e)
         assert o1 == o2
         assert c1.cnt == c2.cnt
+
+
+def test_nstrict():
+    # This function would confuse strict ssa in so many ways
+    def f1(cond):
+        if cond:
+            if cond:
+                return 0
+        elif not cond:
+            z = 1
+
+        if not cond:
+            x = z
+            return x
+
+    f2 = _do_ssa(f1, False, dump_src=True)
+    assert inspect.getsource(f2) == '''\
+def f1(cond):
+    __return_value0 = 0
+    z0 = 1
+    x0 = z0
+    __return_value1 = x0
+    return __return_value0 if cond and cond else __return_value1
+'''
+    for cond in [True, False]:
+        assert f1(cond) == f2(cond)

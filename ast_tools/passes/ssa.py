@@ -32,7 +32,11 @@ def _flip_ctx(node):
     return node
 
 class SSATransformer(ast.NodeTransformer):
-    def __init__(self, env, return_value_prefix, attr_names):
+    def __init__(self,
+            env: SymbolTable,
+            return_value_prefix: str,
+            attr_names: tp.Sequence[str],
+            strict: bool):
         self.attr_names = attr_names
         self.attr_states = {name: [] for name in attr_names}
         self.env = env
@@ -42,6 +46,7 @@ class SSATransformer(ast.NodeTransformer):
         self.cond_stack = []
         self.return_value_prefix = return_value_prefix
         self.returns = []
+        self.strict = strict
 
 
     def _make_name(self, name):
@@ -59,7 +64,7 @@ class SSATransformer(ast.NodeTransformer):
         p = self.return_value_prefix
         name = p + str(self.name_idx[p])
         self.name_idx[p] += 1
-        return name
+        return ast.Name(name, ast.Load())
 
 
     def visit(self, node: ast.AST) -> ast.AST:
@@ -73,9 +78,11 @@ class SSATransformer(ast.NodeTransformer):
                     self.name_table[arg_name] = arg_name
             else:
                 raise TypeError('SSATransformer must be rooted at a function')
-            _prove_names_defined(self.env, self.name_table.keys(), node.body)
-            if not _always_returns(node.body):
-                raise SyntaxError(f'Cannot prove {node.name} returns')
+
+            if self.strict:
+                _prove_names_defined(self.env, self.name_table.keys(), node.body)
+                if not _always_returns(node.body) and not _never_returns(node.body):
+                    raise SyntaxError(f'Cannot prove {node.name} returns')
             return super().generic_visit(node)
         else:
             return super().visit(node)
@@ -227,6 +234,12 @@ class SSATransformer(ast.NodeTransformer):
                 elif name in f_nt and name in nt:
                     # mux between false and old value
                     suite.append(_mux_name(name, nt[name], f_nt[name]))
+                elif name in t_nt and not self.strict:
+                    # Assume name will fall through
+                    nt[name] = t_nt[name]
+                elif name in f_nt and not self.strict:
+                    # Assume name will fall through
+                    nt[name] = f_nt[name]
 
         return suite
 
@@ -256,7 +269,9 @@ class SSATransformer(ast.NodeTransformer):
         # Record the state of each attr_name
         stack = list(self.cond_stack)
         for name in self.attr_names:
-            self.attr_states[name].append((stack, self.name_table[name]))
+            self.attr_states[name].append((
+                stack,
+                ast.Name(self.name_table[name], ast.Load())))
 
         # Record the return value
         r_val = self.visit(node.value)
@@ -356,31 +371,92 @@ def _always_returns(body: tp.Sequence[ast.stmt]) -> bool:
     return False
 
 
+def _never_returns(body: tp.Sequence[ast.stmt]) -> bool:
+    '''
+    Determine if some sequence of statements never reaches a return
+    '''
+    for stmt in body:
+        if isinstance(stmt, ast.Return):
+            return False
+        elif isinstance(stmt, ast.If):
+            if not (_never_returns(stmt.body) and _never_returns(stmt.orelse)):
+                return False
+
+    return True
+
+
 def _fold_conditions(
-        returns: tp.Sequence[tp.Tuple[tp.List[ast.expr], str]]) -> ast.expr:
+        condition_seq: tp.Sequence[tp.Tuple[tp.List[ast.expr], ast.expr]]) -> ast.expr:
     '''
-    "Fold" ifExpr over a Sequence of conditons and names
+    "Fold" ifExpr over a Sequence of conditons and exprs
     '''
-    assert returns
-    conditions, name = returns[0]
-    name = ast.Name(id=name, ctx=ast.Load())
-    if not conditions:
-        return name
+    assert condition_seq
+    conditions, expr = condition_seq[0]
+    if not conditions or len(condition_seq) == 1:
+        return expr
     else:
-        expr = ast.IfExp(
+        conditional = ast.IfExp(
             test=ast.BoolOp(
                 op=ast.And(),
                 values=conditions,
             ),
-            body=name,
-            orelse=_fold_conditions(returns[1:]),
+            body=expr,
+            orelse=_fold_conditions(condition_seq[1:]),
         )
-        return expr
+        return conditional
 
 
 class ssa(Pass):
-    ''' Pass to convert a function to SSA form '''
-    def __init__(self, return_prefix: str = '__return_value'):
+    '''
+    Pass to convert a function to SSA form
+    arguments:
+        strict: bool
+            if strict is True (default) the function must provably always
+            reach a return and all names must be defined in all control paths.
+            No path feasibility analysis is performed so an exhaustive if over
+            cases that ends with a elif will not be recognized for example:
+            ```
+            def foo(cond: bool):
+                if cond:
+                    x = 0
+                elif not cond:
+                    x = 1
+                return x
+            ```
+            would error as x is not provably defined at the return. As the
+            normal transformation would result in:
+            ```
+            def foo(cond: bool):
+                x0 = 0
+                x1 = 1
+                x2 = x0 if cond else 1 if not cond else <?UNDEFINED?>
+                __return_value = x2
+                return __return_value
+            ```
+            Note: that a path that would result in x2 being undefined
+            corresponds with a path that would normally result in a NameError.
+
+            If strict is set to False it is assumed that the code cannot
+            NameError and always reaches a return.  So when a value would be
+            conditionally undefined it will just assume such a state cannot
+            be reached.  So the previous would be transformed to:
+            ```
+            def foo(cond: bool):
+                x0 = 0
+                x1 = 1
+                x2 = x0 if cond else 1
+                __return_value = x2
+                return __return_value
+            ```
+
+        return_prefix: str
+            Controls the name of the return value. Has no functional effects
+            as the pass will only ever use free names.
+    '''
+    def __init__(self,
+            strict: bool = True,
+            return_prefix: str = '__return_value'):
+        self.strict = strict
         self.return_prefix = return_prefix
 
     def rewrite(self,
@@ -390,7 +466,7 @@ class ssa(Pass):
         if not isinstance(tree, ast.FunctionDef):
             raise TypeError('ssa should only be applied to functions')
 
-        # Find all atributes that are written
+        # Find all attributes that are written
         targets = collect_targets(tree, ast.Attribute)
         replacer = AttrReplacer({})
         init_reads = set()
@@ -426,23 +502,33 @@ class ssa(Pass):
 
         # Perform ssa
         r_name = gen_free_prefix(tree, env, self.return_prefix)
-        visitor = SSATransformer(env, r_name, attr_names.keys())
+        visitor = SSATransformer(env, r_name, attr_names.keys(), self.strict)
         tree = visitor.visit(tree)
 
         #insert the write backs to the attrs
         for name, conditons in visitor.attr_states.items():
-            tree.body.append(
-                ast.Assign(
-                    targets=[attr_names[name]],
-                    value=_fold_conditions(conditons)
+            if conditons:
+                tree.body.append(
+                    ast.Assign(
+                        targets=[deepcopy(attr_names[name])],
+                        value=_fold_conditions(conditons)
+                    )
                 )
-            )
-
+            else:
+                tree.body.append(
+                    ast.Assign(
+                        targets=[deepcopy(attr_names[name])],
+                        value=ast.Name(visitor.name_table[name], ast.Load())
+                    )
+                )
 
         # insert the return
-        tree.body.append(
-            ast.Return(
-                value=_fold_conditions(visitor.returns)
+        if visitor.returns:
+            tree.body.append(
+                ast.Return(
+                    value=_fold_conditions(visitor.returns)
+                )
             )
-        )
+        else:
+            assert _never_returns(tree.body)
         return tree, env, metadata
