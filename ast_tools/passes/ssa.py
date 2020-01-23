@@ -466,6 +466,10 @@ class ssa(Pass):
         if not isinstance(tree, ast.FunctionDef):
             raise TypeError('ssa should only be applied to functions')
 
+        # Going to use this in an assert later but need to get the info
+        # before any transformation happens
+        NR = _never_returns(tree.body)
+
         # Find all attributes that are written
         targets = collect_targets(tree, ast.Attribute)
         replacer = AttrReplacer({})
@@ -530,5 +534,5 @@ class ssa(Pass):
                 )
             )
         else:
-            assert _never_returns(tree.body)
+            assert NR
         return tree, env, metadata
