@@ -1,4 +1,5 @@
 import ast
+import code
 import typing as tp
 import warnings
 
@@ -18,7 +19,8 @@ class debug(Pass):
             file: tp.Optional[str] = None,
             append: tp.Optional[bool] = None,
             dump_source_filename: bool = False,
-            dump_source_lines: bool = False
+            dump_source_lines: bool = False,
+            interactive: bool = False,
             ) -> PASS_ARGS_T:
         self.dump_ast = dump_ast
         self.dump_src = dump_src
@@ -29,6 +31,7 @@ class debug(Pass):
         self.append = append
         self.dump_source_filename = dump_source_filename
         self.dump_source_lines = dump_source_lines
+        self.interactive = interactive
 
     def rewrite(self,
             tree: ast.AST,
@@ -73,5 +76,13 @@ class debug(Pass):
         else:
             def _print(*args, **kwargs): print(*args, end='', **kwargs)
             _do_dumps(dumps, _print)
+
+        if self.interactive:
+            # Launch a repl loop
+            code.interact(
+                banner=('Warning: modifications to tree, env, and metadata '
+                        'will have side effects'),
+                local=dict(tree=tree, env=env, metadata=metadata),
+            )
 
         return tree, env, metadata
