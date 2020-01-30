@@ -14,8 +14,12 @@ class begin_rewrite:
     """
     begins a chain of passes
     """
-    def __init__(self, debug=False):
-        env = get_symbol_table([self.__init__])
+    def __init__(self,
+                 debug: bool = False,
+                 env: tp.Optional[SymbolTable] = None):
+        if env is None:
+            env = get_symbol_table([self.__init__])
+
         self.env = env
         self.debug = debug
 
