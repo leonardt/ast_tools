@@ -1,7 +1,6 @@
 import re
 import ast
 import itertools
-from astor import to_source as a2s
 
 # Globals dictionary to evaluate type names in node patterns
 eval_globals = {}
