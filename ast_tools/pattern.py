@@ -2,10 +2,6 @@ import re
 import ast
 import itertools
 
-# Globals dictionary to evaluate type names in node patterns
-eval_globals = {}
-exec('from ast import *', eval_globals)
-
 
 class NodePattern:
     """An individual node match, e.g. {x:Name}"""
@@ -25,7 +21,7 @@ class NodePattern:
             self.type = None
         else:
             assert (len(parts) == 2)
-            self.type = eval(parts[1], eval_globals)
+            self.type = getattr(ast, parts[1])
 
 
 class ASTPattern:

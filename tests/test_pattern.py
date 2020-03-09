@@ -61,7 +61,5 @@ else:
     match1 = parse_match(pattern, stmt1)
     assert match1 is not None
 
-    print(match1)
-
     match2 = parse_match(pattern, stmt2)
     assert match2 is None
