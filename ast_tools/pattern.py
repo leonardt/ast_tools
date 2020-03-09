@@ -20,12 +20,11 @@ class NodePattern:
         Type names are evaluated in a context with the ast module imported.
         """
         parts = tuple(s[1:-1].split(':'))
+        self.name = parts[0]
         if len(parts) == 1:
-            self.name = parts[0]
             self.type = None
         else:
             assert (len(parts) == 2)
-            self.name = parts[0]
             self.type = eval(parts[1], eval_globals)
 
 
@@ -78,8 +77,7 @@ class ASTPattern:
                isinstance(actual_node, node_pattern.type):
                 self._matches[node_pattern.name] = actual_node
                 return True
-            else:
-                return False
+            return False
 
         # Structural AST equality, adapted from
         # https://stackoverflow.com/questions/3312989/elegant-way-to-test-python-asts-for-equality-not-reference-or-object-identity
@@ -94,15 +92,13 @@ class ASTPattern:
             return True
         elif isinstance(pattern_node, list):
             return all(itertools.starmap(self._match, zip(pattern_node, actual_node)))
-        else:
-            return pattern_node == actual_node
+        return pattern_node == actual_node
 
     def match(self, node):
         self._matches = {}
         if self._match(self.template, node):
             return self._matches.copy()
-        else:
-            return None
+        return None
 
 
 def ast_match(pattern, node):
