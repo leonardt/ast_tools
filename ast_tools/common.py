@@ -108,7 +108,7 @@ def gen_free_name(
     if prefix is not None and prefix not in names:
         return prefix
     elif prefix is None:
-        prefix = '__auto_name_'
+        prefix = '_auto_name_'
 
     f_str = prefix+'{}'
     c = 0
@@ -132,7 +132,7 @@ def gen_free_prefix(
     if preprefix is not None and check_prefix(preprefix, names):
         return preprefix
     elif preprefix is None:
-        preprefix = '__auto_prefix_'
+        preprefix = '_auto_prefix_'
 
     f_str = preprefix+'{}'
     c = 0

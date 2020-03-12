@@ -27,7 +27,7 @@ P1 = P0()
     env = SymbolTable({}, {})
 
     free_name = gen_free_name(tree, env)
-    assert free_name == '__auto_name_0'
+    assert free_name == '_auto_name_0'
 
     free_name = gen_free_name(tree, env, prefix='P')
     assert free_name == 'P2'
@@ -51,7 +51,7 @@ P1 = P0()
     env = SymbolTable({}, {})
 
     free_prefix = gen_free_prefix(tree, env)
-    assert free_prefix == '__auto_prefix_0'
+    assert free_prefix == '_auto_prefix_0'
 
     free_prefix = gen_free_prefix(tree, env, 'P')
     assert free_prefix == 'P2'
