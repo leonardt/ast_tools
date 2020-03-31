@@ -70,7 +70,7 @@ def test_get_symbol_table_copy_frames():
     copy_sts = []
     for i in range(5):
         non_copy_sts.append(stack.get_symbol_table())
-        copy_sts.append(stack.get_symbol_table(copy_frames=True))
+        copy_sts.append(stack.get_symbol_table(copy_locals=True))
     for j in range(5):
         assert non_copy_sts[j].locals["i"] == 4
         assert copy_sts[j].locals["i"] == j
