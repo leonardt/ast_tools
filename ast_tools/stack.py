@@ -2,6 +2,7 @@
 Functions and classes the inspect or modify the stack
 '''
 
+import copy
 import inspect
 import typing as tp
 import types
@@ -43,7 +44,8 @@ class SymbolTable(tp.Mapping[str, tp.Any]):
 
 
 def get_symbol_table(
-        decorators: tp.Optional[tp.Sequence[inspect.FrameInfo]] = None
+        decorators: tp.Optional[tp.Sequence[inspect.FrameInfo]] = None,
+        copy_frames: bool = False
         ) -> SymbolTable:
     exec(_SKIP_FRAME_DEBUG_STMT)
     locals = ChainMap()
@@ -67,8 +69,13 @@ def get_symbol_table(
                 raise RuntimeError(f'{frame.function} @ {frame.filename}:{frame.lineno} might be leaking names')
             else:
                 logging.debug(f'{frame.function} @ {frame.filename}:{frame.lineno} might be leaking names')
-        locals = locals.new_child(stack[i].frame.f_locals)
-        globals = globals.new_child(stack[i].frame.f_globals)
+        f_locals = stack[i].frame.f_locals
+        f_globals = stack[i].frame.f_globals
+        if copy_frames:
+            f_locals = copy.copy(f_locals)
+            f_globals = copy.copy(f_globals)
+        locals = locals.new_child(f_locals)
+        globals = globals.new_child(f_globals)
     return SymbolTable(locals=locals, globals=dict(globals))
 
 def inspect_symbol_table(
