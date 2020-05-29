@@ -61,7 +61,7 @@ setup(
         f'{PACKAGE_NAME}.transformers',
         f'{PACKAGE_NAME}.passes'
     ],
-    install_requires=['astor'],
+    install_requires=['astor', 'libcst'],
     long_description=LONG_DESCRIPTION,
     long_description_content_type='text/markdown'
 )
