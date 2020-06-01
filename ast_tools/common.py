@@ -112,7 +112,7 @@ def get_ast(obj) -> ast.AST:
     Given an object, get the corresponding AST
     """
     try:
-        _AST_CACHE[obj]
+        return _AST_CACHE[obj]
     except KeyError:
         pass
 
@@ -127,12 +127,12 @@ def get_ast(obj) -> ast.AST:
 
 
 _CST_CACHE = weakref.WeakKeyDictionary()
-def get_cst(obj) -> ast.AST:
+def get_cst(obj) -> cst.CSTNode:
     """
     Given an object, get the corresponding CST
     """
     try:
-        _CST_CACHE[obj]
+        return _CST_CACHE[obj]
     except KeyError:
         pass
 
@@ -143,7 +143,7 @@ def get_cst(obj) -> ast.AST:
     else:
         tree = cst.parse_statement(src)
 
-    return _AST_CACHE.setdefault(obj, tree)
+    return _CST_CACHE.setdefault(obj, tree)
 
 
 def is_free_name(tree: ast.AST, env: SymbolTable, name: str):

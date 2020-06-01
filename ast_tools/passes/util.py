@@ -28,13 +28,16 @@ class _DecoratorStripper(metaclass=ABCMeta):
     @abstractmethod
     def get_decorators(tree): pass
 
+
     @staticmethod
     @abstractmethod
     def set_decorators(tree, decorators): pass
 
+
     @staticmethod
     @abstractmethod
     def get_name(node): pass
+
 
     @classmethod
     def strip(cls, tree, env, start_sentinel, end_sentinel):
@@ -82,6 +85,7 @@ class _ASTStripper(_DecoratorStripper):
     @staticmethod
     def get_name(node):
         if isinstance(node, ast.Call):
+            assert isinstance(node.func, ast.Name)
             return node.func.id
         else:
             assert isinstance(node, ast.Name)
@@ -169,16 +173,20 @@ class apply_passes(metaclass=ABCMeta):
         self.path = path
         self.file_name = file_name
 
+
     @staticmethod
     @abstractmethod
     def parse(self, tree): pass
+
 
     @staticmethod
     @abstractmethod
     def strip_decorators(tree): pass
 
+
     @abstractmethod
     def exec(self, etree, stree, env): pass
+
 
     def __call__(self, fn):
         tree = self.parse(fn)
