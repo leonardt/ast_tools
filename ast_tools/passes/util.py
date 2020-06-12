@@ -34,9 +34,9 @@ class _DecoratorStripper(metaclass=ABCMeta):
     def set_decorators(tree, decorators): pass
 
 
-    @staticmethod
+    @classmethod
     @abstractmethod
-    def get_name(node): pass
+    def lookup(cls, node, env): pass
 
 
     @classmethod

@@ -77,7 +77,7 @@ def foo():
 def test_debug(capsys):
     l0 = inspect.currentframe().f_lineno + 1
     @end_rewrite(file_name='test_debug.py')
-    @debug(dump_source_filename=True, dump_source_lines=True)
+    @ast_tools.passes.debug(dump_source_filename=True, dump_source_lines=True)
     @begin_rewrite(debug=True)
     def foo():
         print("bar")
@@ -88,7 +88,7 @@ END SOURCE_FILENAME
 
 BEGIN SOURCE_LINES
 {l0+0}:    @end_rewrite(file_name='test_debug.py')
-{l0+1}:    @debug(dump_source_filename=True, dump_source_lines=True)
+{l0+1}:    @ast_tools.passes.debug(dump_source_filename=True, dump_source_lines=True)
 {l0+2}:    @begin_rewrite(debug=True)
 {l0+3}:    def foo():
 {l0+4}:        print("bar")
