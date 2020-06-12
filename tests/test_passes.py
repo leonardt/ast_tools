@@ -1,9 +1,9 @@
 import os
-import functools
 import inspect
 
 import pytest
 
+import ast_tools
 from ast_tools.passes import begin_rewrite, end_rewrite, debug
 from ast_tools.passes import apply_ast_passes, apply_cst_passes
 from ast_tools.stack import SymbolTable
@@ -125,3 +125,25 @@ def test_custom_env():
         return x
 
     assert f() == 1
+
+
+@pytest.mark.parametrize('deco', [apply_ast_passes, apply_cst_passes])
+def test_apply_attribute(deco, capsys):
+    l0 = inspect.currentframe().f_lineno + 1
+    @deco([ast_tools.passes.debug(dump_source_filename=True,
+                                  dump_source_lines=True)], debug=True)
+    def foo():
+        print("bar")
+    assert capsys.readouterr().out == f"""\
+BEGIN SOURCE_FILENAME
+{os.path.abspath(__file__)}
+END SOURCE_FILENAME
+
+BEGIN SOURCE_LINES
+{l0+0}:    @deco([ast_tools.passes.debug(dump_source_filename=True,
+{l0+1}:                                  dump_source_lines=True)], debug=True)
+{l0+2}:    def foo():
+{l0+3}:        print("bar")
+END SOURCE_LINES
+
+"""

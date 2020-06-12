@@ -50,8 +50,7 @@ class _DecoratorStripper(metaclass=ABCMeta):
                 decorators.append(node)
                 continue
 
-            name = cls.get_name(node)
-            deco = env[name]
+            deco = cls.lookup(node, env)
             if in_group:
                 if _issubclass(deco, end_sentinel):
                     in_group = False
@@ -82,14 +81,15 @@ class _ASTStripper(_DecoratorStripper):
         return tree
 
 
-    @staticmethod
-    def get_name(node):
+    @classmethod
+    def lookup(cls, node, env):
         if isinstance(node, ast.Call):
-            assert isinstance(node.func, ast.Name)
-            return node.func.id
+            return cls.lookup(node.func, env)
+        elif isinstance(node, ast.Attribute):
+            return getattr(cls.lookup(node.value, env), node.attr)
         else:
             assert isinstance(node, ast.Name)
-            return node.id
+            return env[node.id]
 
 
 class _CSTStripper(_DecoratorStripper):
@@ -103,14 +103,17 @@ class _CSTStripper(_DecoratorStripper):
         return tree.with_changes(decorators=decorators)
 
 
-    @staticmethod
-    def get_name(node: cst.Decorator):
-        if isinstance(node.decorator, cst.Call):
-            assert isinstance(node.decorator.func, cst.Name)
-            return node.decorator.func.value
+    @classmethod
+    def lookup(cls, node: cst.CSTNode, env):
+        if isinstance(node, cst.Decorator):
+            return cls.lookup(node.decorator, env)
+        elif isinstance(node, cst.Call):
+            return cls.lookup(node.func, env)
+        elif isinstance(node, cst.Attribute):
+            return getattr(cls.lookup(node.value, env), node.attr.value)
         else:
-            assert isinstance(node.decorator, cst.Name)
-            return node.decorator.value
+            assert isinstance(node, cst.Name)
+            return env[node.value]
 
 class begin_rewrite:
     """
