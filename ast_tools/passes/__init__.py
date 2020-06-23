@@ -7,3 +7,4 @@ from .ssa import *
 from .util import *
 from .loop_unroll import loop_unroll
 from .if_inline import if_inline
+from .remove_asserts import remove_asserts
