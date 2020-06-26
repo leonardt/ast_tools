@@ -471,9 +471,7 @@ class ssa(Pass):
         NR = _never_returns(tree.body)
 
         # Find all attributes that are written
-        # Sort so we get determistic codegen
-        targets = sorted(collect_targets(tree, ast.Attribute),
-                         key=lambda x: ast.dump(x))
+        targets = collect_targets(tree, ast.Attribute)
         replacer = AttrReplacer({})
         init_reads = set()
         attr_names = {}
