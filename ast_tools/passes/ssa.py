@@ -473,30 +473,42 @@ class ssa(Pass):
         # Find all attributes that are written
         targets = collect_targets(tree, ast.Attribute)
         replacer = AttrReplacer({})
-        init_reads = set()
-        attr_names = {}
+        init_reads = []
+        id_to_attr = {}
+        attr_to_name = {}
+
+        seen = set()
         for t in targets:
+            i_t = immutable(t)
             if not isinstance(t.value, ast.Name):
                 raise NotImplementedError(f'Only supports writing attributes '
                                           f'of Name not {type(t.value)}')
-            else:
+            elif i_t not in seen:
+                seen.add(i_t)
                 name = ast.Name(
                         id=gen_free_name(tree, env, '_'.join((t.value.id, t.attr))),
                         ctx=ast.Store())
                 # store the maping of names to attrs
-                attr_names[name.id] = t
+                id_to_attr[name.id] = t
+                attr_to_name[i_t] = name
                 #replace writes to the attr with writes to the name
                 replacer.add_replacement(t, name)
                 #replace reads to the attr with reads to the name
                 replacer.add_replacement(_flip_ctx(t), _flip_ctx(name))
 
                 # read the init value
-                init_reads.add(
+                init_reads.append(
                     immutable(ast.Assign(
                         targets=[deepcopy(name)],
                         value=_flip_ctx(t),
                     ))
                 )
+            else:
+                name = attr_to_name[i_t]
+                replacer.add_replacement(t, name)
+                replacer.add_replacement(_flip_ctx(t), _flip_ctx(name))
+
+
 
         # Replace references to the attr with the name generated above
         tree = replacer.visit(tree)
@@ -506,7 +518,7 @@ class ssa(Pass):
 
         # Perform ssa
         r_name = gen_free_prefix(tree, env, self.return_prefix)
-        visitor = SSATransformer(env, r_name, attr_names.keys(), self.strict)
+        visitor = SSATransformer(env, r_name, id_to_attr.keys(), self.strict)
         tree = visitor.visit(tree)
 
         #insert the write backs to the attrs
@@ -514,14 +526,14 @@ class ssa(Pass):
             if conditons:
                 tree.body.append(
                     ast.Assign(
-                        targets=[deepcopy(attr_names[name])],
+                        targets=[deepcopy(id_to_attr[name])],
                         value=_fold_conditions(conditons)
                     )
                 )
             else:
                 tree.body.append(
                     ast.Assign(
-                        targets=[deepcopy(attr_names[name])],
+                        targets=[deepcopy(id_to_attr[name])],
                         value=ast.Name(visitor.name_table[name], ast.Load())
                     )
                 )
