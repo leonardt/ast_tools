@@ -477,14 +477,12 @@ class ssa(Pass):
         id_to_attr = {}
         attr_to_name = {}
 
-        seen = set()
         for t in targets:
             i_t = immutable(t)
             if not isinstance(t.value, ast.Name):
                 raise NotImplementedError(f'Only supports writing attributes '
                                           f'of Name not {type(t.value)}')
-            elif i_t not in seen:
-                seen.add(i_t)
+            elif i_t not in attr_to_name:
                 name = ast.Name(
                         id=gen_free_name(tree, env, '_'.join((t.value.id, t.attr))),
                         ctx=ast.Store())
