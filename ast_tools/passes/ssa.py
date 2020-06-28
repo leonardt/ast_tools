@@ -499,6 +499,7 @@ class ssa(Pass):
                     immutable(ast.Assign(
                         targets=[deepcopy(name)],
                         value=_flip_ctx(t),
+                        type_comment=None,
                     ))
                 )
             else:
