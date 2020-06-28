@@ -10,13 +10,13 @@ from ast_tools.immutable_ast import immutable, mutable
 from ast_tools.stack import SymbolTable
 from ast_tools.transformers import Renamer
 from ast_tools.transformers.node_replacer import NodeReplacer
-from ast_tools.visitors import collect_targets
+from ast_tools.visitors import collect_calls, collect_targets
 
 __ALL__ = ['ssa']
 
 class AttrReplacer(NodeReplacer):
     def _get_key(self, node):
-        if isinstance(node, ast.Attribute):
+        if isinstance(node, ast.Attribute) or isinstance(node, ast.Call):
             # Need the immutable value so its comparable
             return immutable(node)
         else:
@@ -470,9 +470,21 @@ class ssa(Pass):
         # before any transformation happens
         NR = _never_returns(tree.body)
 
+        replacer = AttrReplacer(node_table={})
+
+        # Find all self.attr.prev() call
+        calls = collect_calls(tree)
+        for c in calls:
+            if (isinstance(c.func, ast.Attribute) and
+                    isinstance(c.func.value, ast.Attribute) and
+                    isinstance(c.func.value.value, ast.Name) and
+                    c.func.value.value.id == "self" and
+                    c.func.attr == "prev"):
+                # replace self.attr.prev() with self.attr
+                replacer.add_replacement(c, c.func.value)
+
         # Find all attributes that are written
         targets = collect_targets(tree, ast.Attribute)
-        replacer = AttrReplacer({})
         init_reads = set()
         attr_names = {}
         for t in targets:
