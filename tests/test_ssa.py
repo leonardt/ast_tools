@@ -339,3 +339,45 @@ def f1(cond):
 '''
     for cond in [True, False]:
         assert f1(cond) == f2(cond)
+
+
+@pytest.mark.parametrize('strict', [True, False])
+def test_prev(strict):
+    # Emulate magma sequential self.attr.prev(), works only for this specific test case
+    class Register:
+        def __init__(self, val, prev_ = None):
+            self.prev_ = prev_
+            self.val = val
+
+        def __eq__(self, o):
+            return self.val == o.val
+
+        def __add__(self, o):
+            return Register(self.val + o.val, self.val)
+
+        def prev(self):
+            return Register(self.prev_)
+
+    class Counter1:
+        def __init__(self, init):
+            self.cnt = init
+
+        def __call__(self, val):
+            self.cnt = self.cnt + val
+            return self.cnt.prev()
+
+    class Counter2:
+        __init__ = Counter1.__init__
+        __call__ = _do_ssa(Counter1.__call__, strict, dump_ast=True, dump_src=True)
+
+    c1 = Counter1(Register(3))
+    c2 = Counter2(Register(3))
+
+    assert c1.cnt == c2.cnt
+
+    for _ in range(NTEST):
+        e = Register(random.randint(0, 1))
+        o1 = c1(e)
+        o2 = c2(e)
+        assert o1 == o2
+        assert c1.cnt == c2.cnt
