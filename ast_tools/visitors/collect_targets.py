@@ -14,10 +14,10 @@ class TargetCollector(ast.NodeVisitor):
         if target_filter is None:
             target_filter = ast.AST
         self.target_filter = _filt(target_filter)
-        self.targets = set()
+        self.targets = []
 
     def visit_Assign(self, node: ast.Assign):
-        self.targets.update(filter(self.target_filter, node.targets))
+        self.targets.extend(filter(self.target_filter, node.targets))
 
 
 def collect_targets(tree, target_filter=None):
