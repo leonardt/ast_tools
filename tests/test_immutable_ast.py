@@ -1,5 +1,6 @@
 import pytest
 import ast
+import sys
 
 import inspect
 from ast_tools import immutable_ast
@@ -81,9 +82,12 @@ def test_mutate():
 
 
 def test_construct_from_mutable():
-    node = immutable_ast.Module([
-            ast.Name(id='foo', ctx=ast.Store())
-        ])
+    asts = [ast.Name(id='foo', ctx=ast.Store())]
+    node = (
+        immutable_ast.Module(asts)
+        if sys.version_info < (3, 8)
+        else immutable_ast.Module(asts, type_ignores=None)
+    )
 
     assert isinstance(node.body, tuple)
     assert type(node.body[0]) is immutable_ast.Name
