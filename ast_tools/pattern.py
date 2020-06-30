@@ -81,7 +81,7 @@ class ASTPattern:
             return False
         if isinstance(pattern_node, ast.AST):
             for k, v in vars(pattern_node).items():
-                if k in ('lineno', 'col_offset', 'ctx', '_pp'):
+                if k in ('lineno', 'col_offset', 'end_lineno', 'end_col_offset', 'ctx', '_pp'):
                     continue
                 if not self._match(v, getattr(actual_node, k)):
                     return False

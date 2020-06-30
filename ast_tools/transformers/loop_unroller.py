@@ -30,7 +30,7 @@ class Unroller(ast.NodeTransformer):
                 if not isinstance(i, int):
                     raise NotImplementedError("Unrolling over iterator of"
                                               "non-int")
-                symbol_table = {node.target.id: ast.Num(i)}
+                symbol_table = {node.target.id: ast.Num(i, kind=None)}
                 for child in node.body:
                     body.append(
                         replace_symbols(deepcopy(child), symbol_table)
