@@ -21,17 +21,25 @@ def _cast_tree(seq_t, n_seq_t, type_look_up, tree):
     return T(**kwargs)
 
 
+from functools import lru_cache
+
+
+@lru_cache()
 def immutable(tree: ast.AST) -> 'AST':
     '''Converts a mutable ast to an immutable one'''
     return _cast_tree(list, tuple, ImmutableMeta._mutable_to_immutable, tree)
 
+
+@lru_cache()
 def mutable(tree: 'AST') -> ast.AST:
     '''Converts an immutable ast to a mutable one'''
     return _cast_tree(tuple, list, ImmutableMeta._immutable_to_mutable, tree)
 
+
 def parse(source, filename='<unknown>', mode='exec') -> 'AST':
     tree = ast.parse(source, filename, mode)
     return immutable(tree)
+
 
 def dump(node, annotate_fields=True, include_attributes=False) -> str:
     tree = mutable(node)
