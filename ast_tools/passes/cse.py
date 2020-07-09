@@ -28,25 +28,26 @@ def _is_leaf_expr(node: ast.expr):
         ast.Subscript,
         ))
 
-class ExprFinder(NodeFinder):
-    def _get_key(self, node):
+class ExprKeyGetter:
+    @staticmethod
+    def _get_key(node: ast.AST):
         if isinstance(node, ast.expr):
             # Need the immutable value so its comparable
             return immutable(node)
         else:
             return None
 
-class ExprReplacer(NodeReplacer):
-    def _get_key(self, node):
-        if isinstance(node, ast.expr):
-            # Need the immutable value so its comparable
-            return immutable(node)
-        else:
-            return None
+
+class ExprFinder(ExprKeyGetter, NodeFinder): pass
+
+
+class ExprReplacer(ExprKeyGetter, NodeReplacer): pass
+
 
 class ExprCounter(ast.NodeVisitor):
-    def __init__(self):
+    def __init__(self, count_calls: bool):
         self.cses = Counter()
+        self.count_calls = count_calls
 
     def visit_UnaryOp(self, node: ast.UnaryOp):
         self.cses[immutable(node)] += 1
@@ -69,14 +70,19 @@ class ExprCounter(ast.NodeVisitor):
         self.generic_visit(node)
 
     def vist_Call(self, node: ast.Call):
-        # this seems hard to get right so not going to save Calls
+        if self.count_calls:
+            self.cses[immutable(node)] += 1
+
         return self.generic_visit(node)
 
 
-class CSEElim(ast.NodeTransformer):
-    '''Eliminates a  CSE'''
-    # this could probably be more effecient by handling multiple CSES at
-    # a time but this is simple
+class ExprSaver(ast.NodeTransformer):
+    '''
+    Saves an expression in a variable then replaces
+    future occurrences of that expression with the variable
+    '''
+    # this could probably be more effecient by handling multiple exprs
+    # at a time but this is simple
 
     def __init__(self,
             cse,
@@ -90,7 +96,7 @@ class CSEElim(ast.NodeTransformer):
         self.replacer.add_replacement(cse, ast.Name(cse_name, ast.Load()))
 
     def visit(self, node: ast.AST) -> ast.AST:
-        # basically want to able to visit a top level def
+        # basically want to be able to visit a top level def
         # but don't want to generally recurse into them
         # also want to change behavior after recording the cse
         if self.root is None:
@@ -108,12 +114,14 @@ class CSEElim(ast.NodeTransformer):
         finder.visit(node)
         if finder.target is not None:
             self.recorded = True
-            # eliminate the node from the expression
-            rest = self.replacer.visit(node)
+            # save the expr into a variable
             save = ast.Assign(
                         targets=[ast.Name(self.cse_name, ast.Store())],
                         value=deepcopy(self.cse))
-            return [save, rest]
+
+            # eliminate the node from the expression
+            stmt = self.replacer.visit(node)
+            return [save, stmt]
         else:
             return super().generic_visit(node)
 
@@ -154,7 +162,14 @@ class cse(Pass):
     '''
     Performs common subexpression elimination
 
-    Most be run after ssa.
+    cse_prefix controls the name of variable eliminated expressions are saved in
+        This does not have any semantic effect.
+
+    elim_calls controls whether calls repeated calls should be eliminated
+
+    min_freq the minimum freq of an expression should have to be eliminated
+
+    Must be run after ssa.
 
     Post bool_to_bit will likely eliminate more as:
         `a and b and c`
@@ -167,8 +182,15 @@ class cse(Pass):
     but `a & b` is a subexpression of `a & b & c`
     '''
     def __init__(self,
-            cse_prefix: str = '__common_expr'):
+            cse_prefix: str = '__common_expr',
+            elim_calls: bool = False,
+            min_freq: int = 2,
+            ):
+        if min_freq < 2:
+            raise ValueError('min_freq must be >= 2')
         self.cse_prefix = cse_prefix
+        self.elim_calls = elim_calls
+        self.min_freq = min_freq
 
 
     def rewrite(self,
@@ -179,19 +201,28 @@ class cse(Pass):
         prefix = gen_free_prefix(tree, env, self.cse_prefix)
         c = 0
         while True:
-            counter = ExprCounter()
+            # Count all the expressions in the tree
+            counter = ExprCounter(self.elim_calls)
             counter.visit(tree)
+
+            # If there are no expression in the tree
             if not counter.cses:
                 break
 
+            # get the most common expression
             expr, freq = counter.cses.most_common()[0]
-            if freq <= 1:
+            if freq < self.min_freq:
                 break
 
             expr = mutable(expr)
-            elim = CSEElim(expr, prefix + repr(c))
+
+            # Find the first occurrence of the expression
+            # and save it to a variable then replace
+            # future occurrences of that expression with
+            # references to that variable
+            saver = ExprSaver(expr, prefix + repr(c))
             c += 1
-            tree = elim.visit(tree)
+            tree = saver.visit(tree)
 
 
         return tree, env, metadata
