@@ -146,9 +146,12 @@ def foo():
 
 ## Inlining If Statements
 This macro allows you to evaluate `if` statements at function definition time,
-so the resulting rewritten function will have marked `if` statements "inlined"
-(if statement is removed from the final code and replaced with the chosen
-branch based on evaluating the condition in the definition's enclosing scope).
+so the resulting rewritten function will have the `if` statements marked
+"inlined" removed from the final code and replaced with the chosen branch based
+on evaluating the condition in the definition's enclosing scope.  `if`
+statements are marked by using the form `if inline(...):` where `inline` is
+imported from the `ast_tools.macros` package.  `if` statements not matching
+this pattern will be ignored by the rewrite logic.
 
 Here's an example
 ```python
