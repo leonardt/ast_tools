@@ -156,6 +156,7 @@ from ast_tools.macros import inline
 from ast_tools.passes import apply_ast_passes, if_inline
 
 y = True
+
 @apply_ast_passes([if_inline()])
 def foo(x):
     if inline(y):
@@ -167,6 +168,6 @@ def foo(x):
 import inspect
 assert inspect.getsource(foo) == f"""\
 def foo(x):
-return x + 1
+    return x + 1
 """
 ```
