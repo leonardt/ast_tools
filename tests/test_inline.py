@@ -5,7 +5,8 @@ import astor
 import pytest
 
 from ast_tools.macros import inline
-from ast_tools.passes import begin_rewrite, end_rewrite, if_inline, debug
+from ast_tools.passes import (begin_rewrite, end_rewrite, if_inline, debug,
+                              apply_ast_passes)
 
 def _do_inline(func, **kwargs):
     for dec in (
@@ -104,3 +105,17 @@ def nested(cond):
         return {2 if cond_0 else 0}
 '''
     assert nested(cond_1) == inlined(cond_1)
+
+
+def test_readme_example():
+    y = True
+    @apply_ast_passes([if_inline()])
+    def foo(x):
+        if inline(y):
+            return x + 1
+        else:
+            return x - 1
+    assert inspect.getsource(foo) == f"""\
+def foo(x):
+    return x + 1
+"""
