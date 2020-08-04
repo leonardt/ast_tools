@@ -16,6 +16,7 @@ before_deploy:
   - if [[ $TRAVIS_PYTHON_VERSION == 3.7 ]]; then echo "[bdist_wheel]\npython-tag=py37" > setup.cfg; fi
 
 deploy:
+  skip_cleanup: true
   provider: pypi
   user: leonardt
   password:
