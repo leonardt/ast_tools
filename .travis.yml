@@ -12,6 +12,7 @@ before_deploy:
   # Hack to set python-tag in bdist_wheel since travis deploy doesn't accept
   # bdist_wheel arguments, see
   # https://stackoverflow.com/questions/52609945/how-do-i-add-a-python-tag-to-the-bdist-wheel-command-using-setuptools
+  - echo $TRAVIS_PYTHON_VERSION
   - if [[ $TRAVIS_PYTHON_VERSION == 3.6 ]]; then echo "[bdist_wheel]\npython-tag=py36" > setup.cfg; fi
   - if [[ $TRAVIS_PYTHON_VERSION == 3.7 ]]; then echo "[bdist_wheel]\npython-tag=py37" > setup.cfg; fi
 
