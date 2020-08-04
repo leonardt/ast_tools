@@ -1,4 +1,5 @@
 import ast
+import sys
 from collections import ChainMap, Counter
 from copy import deepcopy
 import typing as tp
@@ -495,13 +496,13 @@ class ssa(Pass):
                 replacer.add_replacement(_flip_ctx(t), _flip_ctx(name))
 
                 # read the init value
-                init_reads.append(
-                    immutable(ast.Assign(
-                        targets=[deepcopy(name)],
-                        value=_flip_ctx(t),
-                        type_comment=None,
-                    ))
-                )
+                if sys.version_info < (3, 8):
+                    assign = ast.Assign(targets=[deepcopy(name)], value=_flip_ctx(t))
+                else:
+                    assign = ast.Assign(
+                            targets=[deepcopy(name)], value=_flip_ctx(t),
+                            type_comment=None)
+                init_reads.append(immutable(assign))
             else:
                 name = attr_to_name[i_t]
                 replacer.add_replacement(t, name)
