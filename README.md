@@ -126,12 +126,10 @@ def foo():
 You can also use a list of `int`s, here's an example that also uses a reference
 to a variable defined in the outer scope:
 ```python
-from ast_tools.passes import begin_rewrite, loop_unroll, end_rewrite
+from ast_tools.passes import apply_ast_passes, loop_unroll
 
 j = [1, 2, 3]
-@end_rewrite()
-@loop_unroll()
-@begin_rewrite()
+@apply_ast_passes([loop_unroll()])
 def foo():
     for i in ast_tools.macros.unroll(j):
         print(i)
