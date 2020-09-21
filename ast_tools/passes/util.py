@@ -157,7 +157,7 @@ class end_rewrite(Pass):
         return exec_def_in_file(etree, env, serialized_tree=stree, **self.kwargs)
 
 
-class apply_passes(metaclass=ABCMeta):
+class _apply_passes(metaclass=ABCMeta):
     '''
     Applies a sequence of passes to a function or class
     '''
@@ -208,7 +208,7 @@ class apply_passes(metaclass=ABCMeta):
         return self.exec(etree, stree, env)
 
 
-class apply_ast_passes(apply_passes):
+class apply_ast_passes(_apply_passes):
     parse = staticmethod(get_ast)
     strip_decorators = staticmethod(_ASTStripper.strip)
 
@@ -218,7 +218,7 @@ class apply_ast_passes(apply_passes):
         return exec_def_in_file(etree, env, self.path, self.file_name, stree)
 
 
-class apply_cst_passes(apply_passes):
+class apply_cst_passes(_apply_passes):
     parse = staticmethod(get_cst)
     strip_decorators = staticmethod(_CSTStripper.strip)
 
@@ -226,7 +226,6 @@ class apply_cst_passes(apply_passes):
             etree: tp.Union[cst.ClassDef, cst.FunctionDef],
             stree: tp.Union[cst.ClassDef, cst.FunctionDef],
             env: SymbolTable):
-        emod = cst.Module(body=(etree,))
-        smod = cst.Module(body=(stree,))
-        st = exec_str_in_file(emod.code, env, self.path, self.file_name, smod.code)
-        return st[etree.name.value]
+        return exec_def_in_file(etree, env, self.path, self.file_name, stree)
+
+apply_passes = apply_cst_passes

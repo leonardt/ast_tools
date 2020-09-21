@@ -1,24 +1,17 @@
-import ast
 from functools import lru_cache
+import typing as tp
 
-class UsedNames(ast.NodeVisitor):
+import libcst as cst
+
+class UsedNames(cst.CSTVisitor):
     def __init__(self):
-        self.names = set()
+        self.names: tp.MutableSet[str] = set()
 
-    def visit_Name(self, node: ast.Name):
-        self.names.add(node.id)
-
-    def visit_FunctionDef(self, node: ast.FunctionDef):
-        self.names.add(node.name)
-
-    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef):
-        self.names.add(node.name)
-
-    def visit_ClassDef(self, node: ast.ClassDef):
-        self.names.add(node.name)
+    def visit_Name(self, node: cst.Name):
+        self.names.add(node.value)
 
 @lru_cache()
-def used_names(tree: ast.AST):
+def used_names(tree: cst.CSTNode):
     visitor = UsedNames()
-    visitor.visit(tree)
+    tree.visit(visitor)
     return visitor.names
