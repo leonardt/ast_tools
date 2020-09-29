@@ -1,8 +1,8 @@
-from ast_tools.passes import apply_ast_passes, remove_asserts
+from ast_tools.passes import apply_passes, remove_asserts
 import inspect
 
 def test_remove_asserts():
-    @apply_ast_passes([remove_asserts()])
+    @apply_passes([remove_asserts()])
     def foo():
         if True:
             assert False
