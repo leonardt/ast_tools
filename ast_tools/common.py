@@ -14,6 +14,7 @@ import libcst as cst
 from ast_tools import stack
 from ast_tools.stack import SymbolTable
 from ast_tools.visitors import used_names
+from ast_tools.cst_utils import to_module
 
 __ALL__ = ['exec_in_file', 'exec_def_in_file', 'exec_str_in_file', 'get_ast', 'get_cst', 'gen_free_name']
 
@@ -27,19 +28,8 @@ DefStmt = tp.Union[
 def to_source(
         tree: cst.CSTNode
         ) -> str:
-    # build stmt from expr
-    if isinstance(tree, cst.BaseExpression):
-        tree = cst.Expr(value=tree)
-
-    # build module from stmt
-    if isinstance(tree, (cst.BaseStatement, cst.BaseSmallStatement)):
-        tree = cst.Module(body=(tree,))
-
-    if isinstance(tree, cst.Module):
-        return tree.code
-
-    raise TypeError(f'Cannot serialize {tree} :: {type(tree)}')
-
+    tree = to_module(tree)
+    return tree.code
 
 def exec_def_in_file(
         tree: DefStmt,

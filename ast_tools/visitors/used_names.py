@@ -4,7 +4,7 @@ import typing as tp
 import libcst as cst
 from libcst.metadata import ScopeProvider
 
-from ast_tools.cst_utils import body_to_module
+from ast_tools.cst_utils import to_module
 
 class UsedNames(cst.CSTVisitor):
     METADATA_DEPENDENCIES = (ScopeProvider,)
@@ -27,9 +27,7 @@ class UsedNames(cst.CSTVisitor):
 
 @lru_cache()
 def used_names(tree: cst.CSTNode):
-    if isinstance(tree, cst.BaseSuite):
-        tree = body_to_module(tree)
-
+    tree = to_module(tree)
     visitor = UsedNames()
     wrapper = cst.MetadataWrapper(tree, unsafe_skip_copy=True)
     wrapper.visit(visitor)

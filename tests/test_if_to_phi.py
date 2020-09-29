@@ -3,15 +3,8 @@ import inspect
 
 import pytest
 
-from ast_tools.passes import begin_rewrite, end_rewrite, if_to_phi
+from ast_tools.passes import apply_passes, if_to_phi
 
-def _do_if_to_phi(func, *phi_args):
-    for dec in (
-            begin_rewrite(),
-            if_to_phi(*phi_args),
-            end_rewrite()):
-        func = dec(func)
-    return func
 
 def mux(select, t, f):
     return t if select else f
@@ -27,7 +20,7 @@ def test_basic(phi_args, expected_name):
     def basic(s):
         return 0 if s else 1
 
-    phi_basic = _do_if_to_phi(basic, *phi_args)
+    phi_basic = apply_passes([if_to_phi(*phi_args)])(basic)
 
     for s in (True, False):
         assert basic(s) == phi_basic(s)
@@ -48,7 +41,7 @@ def test_nested(phi_args, expected_name):
     def nested(s, t):
         return 0 if s else 1 if t else 2
 
-    phi_nested = _do_if_to_phi(nested, *phi_args)
+    phi_nested = apply_passes([if_to_phi(*phi_args)])(nested)
 
     for s in (True, False):
         for t in (True, False):
