@@ -4,12 +4,10 @@ import inspect
 import pytest
 
 
-from ast_tools.passes import begin_rewrite, end_rewrite, bool_to_bit
+from ast_tools.passes import apply_passes, bool_to_bit
 
 def test_and():
-    @end_rewrite()
-    @bool_to_bit()
-    @begin_rewrite()
+    @apply_passes([bool_to_bit()])
     def and_f(x, y):
         return x and y
 
@@ -19,9 +17,7 @@ def and_f(x, y):
 '''
 
 def test_or():
-    @end_rewrite()
-    @bool_to_bit()
-    @begin_rewrite()
+    @apply_passes([bool_to_bit()])
     def or_f(x, y):
         return x or y
 
@@ -31,9 +27,7 @@ def or_f(x, y):
 '''
 
 def test_not():
-    @end_rewrite()
-    @bool_to_bit()
-    @begin_rewrite()
+    @apply_passes([bool_to_bit()])
     def not_f(x):
         return not x
 
@@ -43,9 +37,7 @@ def not_f(x):
 '''
 
 def test_xor():
-    @end_rewrite()
-    @bool_to_bit()
-    @begin_rewrite()
+    @apply_passes([bool_to_bit()])
     def xor(x, y):
         return x and not y or not x and y
 
