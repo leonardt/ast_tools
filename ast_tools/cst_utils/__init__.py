@@ -2,6 +2,7 @@ import typing as tp
 
 import libcst as cst
 
+from .insert_statements import InsertStatementsVisitor
 
 _T = tp.Union[
         cst.BaseSuite,

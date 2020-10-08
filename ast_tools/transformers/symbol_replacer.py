@@ -1,10 +1,11 @@
-import ast
+import libcst as cst
+
 from .node_replacer import NodeReplacer
 
 class SymbolReplacer(NodeReplacer):
-    def _get_key(self, node):
-        if isinstance(node, ast.Name):
-            return node.id
+    def _get_key(self, node: cst.CSTNode):
+        if isinstance(node, cst.Name):
+            return node.value
         else:
             return None
 

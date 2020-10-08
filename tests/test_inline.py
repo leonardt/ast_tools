@@ -5,18 +5,7 @@ import astor
 import pytest
 
 from ast_tools.macros import inline
-from ast_tools.passes import (begin_rewrite, end_rewrite, if_inline, debug,
-                              apply_ast_passes)
-
-def _do_inline(func, **kwargs):
-    for dec in (
-            begin_rewrite(),
-            debug(**kwargs),
-            if_inline(),
-            debug(**kwargs),
-            end_rewrite()):
-        func = dec(func)
-    return func
+from ast_tools.passes import apply_passes, if_inline
 
 
 @pytest.mark.parametrize('cond', [False, True])
@@ -27,7 +16,7 @@ def test_basic(cond):
         else:
             return 1
 
-    inlined = _do_inline(basic)
+    inlined = apply_passes([if_inline()])(basic)
     assert inspect.getsource(inlined) == f'''\
 def basic():
     return {0 if cond else 1}
@@ -49,10 +38,10 @@ def test_nested(cond_0, cond_1):
             else:
                 return 0
 
-    inlined = _do_inline(nested)
+    inlined = apply_passes([if_inline()])(nested)
     assert inspect.getsource(inlined) == f'''\
 def nested():
-    return {(int(cond_0) << 1) | int(cond_1)}
+    return {nested()}
 '''
     assert nested() == inlined()
 
@@ -71,7 +60,7 @@ def test_inner_inline(cond_0, cond_1):
             else:
                 return 0
 
-    inlined = _do_inline(nested)
+    inlined = apply_passes([if_inline()])(nested)
     assert inspect.getsource(inlined) == f'''\
 def nested(cond):
     if cond:
@@ -96,7 +85,7 @@ def test_outer_inline(cond_0, cond_1):
             else:
                 return 0
 
-    inlined = _do_inline(nested)
+    inlined = apply_passes([if_inline()])(nested)
     assert inspect.getsource(inlined) == f'''\
 def nested(cond):
     if cond:
@@ -109,7 +98,7 @@ def nested(cond):
 
 def test_readme_example():
     y = True
-    @apply_ast_passes([if_inline()])
+    @apply_passes([if_inline()])
     def foo(x):
         if inline(y):
             return x + 1
