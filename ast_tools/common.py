@@ -1,3 +1,4 @@
+import abc
 import ast
 import functools
 import inspect
@@ -9,6 +10,8 @@ import types
 import typing as tp
 import weakref
 
+import astor
+
 import libcst as cst
 
 from ast_tools import stack
@@ -18,18 +21,18 @@ from ast_tools.cst_utils import to_module
 
 __ALL__ = ['exec_in_file', 'exec_def_in_file', 'exec_str_in_file', 'get_ast', 'get_cst', 'gen_free_name']
 
-DefStmt = tp.Union[
+CSTDefStmt = tp.Union[
         cst.ClassDef,
         cst.FunctionDef,
         ]
 
+ASTDefStmt = tp.Union[
+        ast.AsyncFunctionDef,
+        ast.ClassDef,
+        ast.FunctionDef,
+    ]
 
-
-def to_source(
-        tree: cst.CSTNode
-        ) -> str:
-    tree = to_module(tree)
-    return tree.code
+DefStmt = tp.Union[ASTDefStmt, CSTDefStmt]
 
 def exec_def_in_file(
         tree: DefStmt,
@@ -37,26 +40,40 @@ def exec_def_in_file(
         path: tp.Optional[str] = None,
         file_name: tp.Optional[str] = None,
         serialized_tree: tp.Optional[DefStmt] = None,
-        ):
+        ) -> tp.Any:
     """
     execs a definition in a file and returns the definiton
 
     For explanation of serialized_tree see
     https://github.com/leonardt/ast_tools/issues/46
     """
+    tree_name = _get_name(tree)
     if file_name is None:
-        file_name = tree.name.value + f'{hash(tree)}.py'
+        file_name = tree_name + f'{hash(tree)}.py'
 
-    return exec_in_file(tree, st, path, file_name, serialized_tree)[tree.name.value]
+    return exec_in_file(tree, st, path, file_name, serialized_tree)[tree_name]
 
+def _get_name(tree: DefStmt) -> str:
+    if isinstance(tree, ast.AST):
+        return tree.name
+    else:
+        return tree.name.value
+
+def to_source(
+        tree: DefStmt
+        ) -> str:
+    if isinstance(tree, ast.AST):
+        return astor.to_source(tree)
+    else:
+        return to_module(tree).code
 
 def exec_in_file(
-        tree: cst.CSTNode,
+        tree: DefStmt,
         st: SymbolTable,
         path: tp.Optional[str] = None,
         file_name: tp.Optional[str] = None,
         serialized_tree: tp.Optional[DefStmt] = None,
-        ):
+        ) -> tp.MutableMapping[str, tp.Any]:
 
     """
     execs an ast as a module and returns the modified enviroment
@@ -79,7 +96,7 @@ def exec_str_in_file(
         path: tp.Optional[str] = None,
         file_name: tp.Optional[str] = None,
         serialized_source: tp.Optional[str] = None,
-        ):
+        ) -> tp.MutableMapping[str, tp.Any]:
     """
     execs a string as a module and returns the modified enviroment
 
@@ -116,7 +133,7 @@ def exec_str_in_file(
         raise e from None
 
 
-_AST_CACHE = weakref.WeakKeyDictionary()
+_AST_CACHE: tp.MutableMapping[tp.Any, ast.AST] = weakref.WeakKeyDictionary()
 def get_ast(obj) -> ast.AST:
     """
     Given an object, get the corresponding AST
@@ -137,7 +154,7 @@ def get_ast(obj) -> ast.AST:
 
 
 
-_CST_CACHE = weakref.WeakKeyDictionary()
+_CST_CACHE: tp.MutableMapping[tp.Any, cst.CSTNode] = weakref.WeakKeyDictionary()
 def get_cst(obj) -> cst.CSTNode:
     """
     Given an object, get the corresponding CST
