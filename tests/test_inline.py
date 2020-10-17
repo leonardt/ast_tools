@@ -1,6 +1,4 @@
 import inspect
-import ast
-import astor
 
 import pytest
 

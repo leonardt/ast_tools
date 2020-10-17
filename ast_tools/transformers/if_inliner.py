@@ -39,6 +39,9 @@ class Inliner(InsertStatementsVisitor):
 
 
 def inline_ifs(tree: cst.CSTNode, env: tp.Mapping[str, tp.Any]) -> cst.CSTNode:
-    vistor = Inliner(env)
-    new_body = tree.body.visit(vistor)
-    return tree.with_changes(body=new_body)
+    visitor = Inliner(env)
+    if isinstance(tree, cst.Module):
+        return tree.visit(visitor)
+    else:
+        new_body = tree.body.visit(visitor)
+        return tree.with_changes(body=new_body)

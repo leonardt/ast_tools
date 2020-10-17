@@ -10,4 +10,4 @@ class SymbolReplacer(NodeReplacer):
             return None
 
 def replace_symbols(tree, symbol_table):
-    return SymbolReplacer(symbol_table).visit(tree)
+    return tree.visit(SymbolReplacer(symbol_table))
