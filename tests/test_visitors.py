@@ -55,7 +55,6 @@ async def h(): pass
     assert used_names(tree.body[1].body) == {'g'}
 
 # Currently broken requires new release of LibCSt
-@pytest.mark.skip()
 def test_collect_names():
     """
     Test collecting names from a simple function including the `ctx` feature
@@ -63,11 +62,14 @@ def test_collect_names():
     s = '''
 def foo(bar, baz):  # pylint: disable=blacklisted-name
     buzz = bar + baz
+    name_error
+    del bar
     return buzz
 '''
 
     foo_ast = cst.parse_module(s)
-    assert collect_names(foo_ast, ctx=cst.metadata.ExpressionContext.STORE) == {"buzz"}
-    assert collect_names(foo_ast, ctx=cst.metadata.ExpressionContext.LOAD) == {"bar", "baz", "buzz"}
-    assert collect_names(foo_ast) == {"foo", "bar", "baz", "buzz"}
+    assert collect_names(foo_ast, ctx=cst.metadata.ExpressionContext.STORE) == {"foo", "bar", "baz", "buzz"}
+    assert collect_names(foo_ast, ctx=cst.metadata.ExpressionContext.LOAD) == {"bar", "baz", "buzz", "name_error"}
+    assert collect_names(foo_ast, ctx=cst.metadata.ExpressionContext.DEL) == {"bar"}
+    assert collect_names(foo_ast) == {"foo", "bar", "baz", "buzz", "name_error"}
 
