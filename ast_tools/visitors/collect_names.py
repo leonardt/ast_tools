@@ -38,7 +38,6 @@ class NameCollector(cst.CSTVisitor):
     def visit_Name(self, node: cst.Name):
         ctx = self.get_metadata(ExpressionContextProvider, node)
         if ctx in self.ctx:
-            print(node, ctx)
             self.names.add(node.value)
 
 
