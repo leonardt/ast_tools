@@ -1,11 +1,13 @@
-import ast
 import inspect
 import random
+
+import libcst as cst
 
 import pytest
 
 from ast_tools.common import exec_def_in_file
-from ast_tools.passes import begin_rewrite, end_rewrite, ssa, debug
+from ast_tools.passes.ssa import ssa
+from ast_tools.passes import apply_passes
 from ast_tools.stack import SymbolTable
 
 NTEST = 16
@@ -41,10 +43,10 @@ def test_basic_if(strict, a, b):
         final = 'return r'
 
     src = basic_template.format(a, b, final)
-    tree = ast.parse(src).body[0]
+    tree = cst.parse_statement(src)
     env = SymbolTable({}, {})
     basic = exec_def_in_file(tree, env)
-    ssa_basic = _do_ssa(basic, strict, dump_src=True)
+    ssa_basic = apply_passes([ssa(strict)])(basic)
 
     for x in (False, True):
         assert basic(x) == ssa_basic(x)
@@ -77,10 +79,10 @@ def test_nested(strict, a, b, c, d):
         final = 'return r'
 
     src = nested_template.format(a, b, c, d, final)
-    tree = ast.parse(src).body[0]
+    tree = cst.parse_statement(src)
     env = SymbolTable({}, {})
     nested = exec_def_in_file(tree, env)
-    ssa_nested = _do_ssa(nested, strict, dump_src=True)
+    ssa_nested = apply_passes([ssa(strict)])(nested)
 
     for x in (False, True):
         for y in (False, True):
@@ -107,7 +109,7 @@ init_template_options = ['r = ', '0']
 @pytest.mark.parametrize('d', template_options)
 def test_imbalanced(strict, a, b, c, d):
     src = imbalanced_template.format(a, b, c, d)
-    tree = ast.parse(src).body[0]
+    tree = cst.parse_statement(src)
     env = SymbolTable({}, {})
     imbalanced = exec_def_in_file(tree, env)
     can_name_error = False
@@ -121,31 +123,31 @@ def test_imbalanced(strict, a, b, c, d):
 
     if can_name_error and strict:
         with pytest.raises(SyntaxError):
-            imbalanced_ssa = _do_ssa(imbalanced, strict, dump_src=True)
+            pytest.skip()
+            ssa_imbalanced = apply_passes([ssa(strict)])(imbalanced)
     elif not can_name_error:
-        imbalanced_ssa = _do_ssa(imbalanced, strict, dump_src=True)
+        ssa_imbalanced = apply_passes([ssa(strict)])(imbalanced)
         for x in (False, True):
             for y in (False, True):
-                assert imbalanced(x, y) == imbalanced_ssa(x, y)
+                assert imbalanced(x, y) == ssa_imbalanced(x, y)
 
 
 def test_reassign_arg():
     def bar(x):
         return x
 
-    @end_rewrite()
-    @ssa()
-    @begin_rewrite()
+    @apply_passes([ssa()])
     def foo(a, b):
         if b:
             a = len(a)
         return a
     assert inspect.getsource(foo) == '''\
 def foo(a, b):
-    a0 = len(a)
-    a1 = a0 if b else a
-    __return_value0 = a1
-    return __return_value0
+    _cond_0 = b
+    a_0 = len(a)
+    a_1 = a_0 if _cond_0 else a
+    __0_return_0 = a_1
+    return __0_return_0
 '''
 
 
@@ -156,9 +158,7 @@ def test_double_nested_function_call():
     def baz(x):
         return x + 1
 
-    @end_rewrite()
-    @ssa()
-    @begin_rewrite()
+    @apply_passes([ssa()])
     def foo(a, b, c):
         if b:
             a = bar(a)
@@ -169,17 +169,18 @@ def test_double_nested_function_call():
         else:
             b = bar(b)
         return a, b
-    print(inspect.getsource(foo))
     assert inspect.getsource(foo) == '''\
 def foo(a, b, c):
-    a0 = bar(a)
-    a1 = bar(a)
-    a2 = a0 if b else a1
-    b0 = bar(b)
-    b1 = bar(b)
-    b2 = b0 if c else b1
-    __return_value0 = a2, b2
-    return __return_value0
+    _cond_0 = b
+    a_0 = bar(a)
+    a_1 = bar(a)
+    a_2 = a_0 if _cond_0 else a_1
+    _cond_1 = c
+    b_0 = bar(b)
+    b_1 = bar(b)
+    b_2 = b_0 if _cond_1 else b_1
+    __0_return_0 = a_2, b_2
+    return __0_return_0
 '''
 
 class Thing:
@@ -208,7 +209,7 @@ def test_attrs_basic(strict):
             t.x = 0
         return old
 
-    f2  = _do_ssa(f1, strict, dump_ast=True, dump_src=True)
+    f2  = apply_passes([ssa(strict)])(f1)
 
     t1 = Thing()
     t2 = Thing()
@@ -237,7 +238,7 @@ def test_attrs_returns(strict):
                 return 1
         return -1
 
-    f2  = _do_ssa(f1, strict, dump_src=True)
+    f2  = apply_passes([ssa(strict)])(f1)
 
     t1 = Thing()
     t2 = Thing()
@@ -267,7 +268,7 @@ def test_attrs_class(strict):
 
     class Counter2:
         __init__ = Counter1.__init__
-        __call__ = _do_ssa(Counter1.__call__, strict, dump_ast=True, dump_src=True)
+        __call__ = apply_passes([ssa(strict)])(Counter1.__call__)
 
     c1 = Counter1(3, 5)
     c2 = Counter2(3, 5)
@@ -299,7 +300,7 @@ def test_attrs_class_methods(strict):
 
     class Counter2:
         __init__ = Counter1.__init__
-        __call__ = _do_ssa(Counter1.__call__, strict, dump_ast=True, dump_src=True)
+        __call__ = apply_passes([ssa(strict)])(Counter1.__call__)
         get_step = Counter1.get_step
 
     c1 = Counter1(3, 5)
@@ -328,14 +329,19 @@ def test_nstrict():
             x = z
             return x
 
-    f2 = _do_ssa(f1, False, dump_src=True)
+    f2 = apply_passes([ssa(False)])(f1)
     assert inspect.getsource(f2) == '''\
 def f1(cond):
-    __return_value0 = 0
-    z0 = 1
-    x0 = z0
-    __return_value1 = x0
-    return __return_value0 if cond and cond else __return_value1
+    _cond_1 = not cond
+    _cond_2 = cond
+    _cond_0 = cond
+    __0_return_0 = 0
+    z_0 = 1
+
+    _cond_3 = not cond
+    x_0 = z_0
+    __0_return_1 = x_0
+    return __0_return_0 if _cond_2 and _cond_0 else __0_return_1
 '''
     for cond in [True, False]:
         assert f1(cond) == f2(cond)
