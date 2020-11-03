@@ -240,11 +240,11 @@ class InsertStatementsVisitor(ContextAwareTransformer, RemoveEmptyBlocks):
             final_node: Union[cst.BaseStatement, cst.RemovalSentinel],
     ) -> None:
         ctx = self._context()
-        assert (
-            len(ctx.ctx_block) > 0
-        ), "InsertStatementVisitor is leaving a statement before having entered a block"
-        ctx_block = ctx.ctx_block[-1]
         ctx_stmt = ctx.ctx_stmt.pop()
+        if not ctx.ctx_block:
+            return final_node
+
+        ctx_block = ctx.ctx_block[-1]
 
         should_insert = not isinstance(final_node, cst.RemovalSentinel)
         if hasattr(original_node, 'leading_lines') and ctx_stmt.keep_comments:
