@@ -7,7 +7,7 @@ import pytest
 
 from ast_tools.common import exec_def_in_file
 from ast_tools.passes.ssa import ssa
-from ast_tools.passes import apply_passes
+from ast_tools.passes import apply_passes, debug
 from ast_tools.stack import SymbolTable
 
 NTEST = 16
@@ -121,14 +121,13 @@ def test_imbalanced(strict, a, b, c, d):
                 can_name_error = True
                 break
 
-    if can_name_error and strict:
-        with pytest.raises(SyntaxError):
-            pytest.skip()
-            ssa_imbalanced = apply_passes([ssa(strict)])(imbalanced)
-    elif not can_name_error:
-        ssa_imbalanced = apply_passes([ssa(strict)])(imbalanced)
-        for x in (False, True):
-            for y in (False, True):
+    ssa_imbalanced = apply_passes([ssa(strict)])(imbalanced)
+    for x in (False, True):
+        for y in (False, True):
+            if can_name_error and strict:
+                with pytest.raises(NameError):
+                    ssa_imbalanced(x, y)
+            elif not can_name_error:
                 assert imbalanced(x, y) == ssa_imbalanced(x, y)
 
 

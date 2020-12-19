@@ -5,8 +5,11 @@ import warnings
 
 import astor
 
+import libcst as cst
+
 from . import Pass
 from . import PASS_ARGS_T
+from ast_tools import to_module
 from ast_tools.stack import SymbolTable
 
 __ALL__ = ['debug']
@@ -34,10 +37,9 @@ class debug(Pass):
         self.interactive = interactive
 
     def rewrite(self,
-            tree: ast.AST,
+            tree: cst.CSTNode,
             env: SymbolTable,
-            metadata: tp.MutableMapping,
-            ) -> PASS_ARGS_T:
+            metadata: tp.MutableMapping) -> PASS_ARGS_T:
 
         def _do_dumps(dumps, dump_writer):
             for dump in dumps:
@@ -47,9 +49,9 @@ class debug(Pass):
 
         dumps = []
         if self.dump_ast:
-            dumps.append(('AST', astor.dump_tree(tree)))
+            dumps.append(('AST', repr(tree)))
         if self.dump_src:
-            dumps.append(('SRC', astor.to_source(tree)))
+            dumps.append(('SRC', to_module(tree).code))
         if self.dump_env:
             dumps.append(('ENV', repr(env)))
         if self.dump_source_filename:
