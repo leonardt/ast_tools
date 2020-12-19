@@ -30,15 +30,16 @@ def to_module(node: _T) -> cst.Module:
 
     raise TypeError(f'{node} :: {type(node)} cannot be cast to Module')
 
+def _stmt(node: cst.BaseSmallStatement) -> cst.SimpleStatementLine:
+    return cst.SimpleStatementLine(body=[node])
+
 def make_assign(
         lhs: cst.BaseAssignTargetExpression,
         rhs: cst.BaseExpression,
         ) -> cst.SimpleStatementLine:
-    return cst.SimpleStatementLine(
-            body=[
-                cst.Assign(
-                    targets=[cst.AssignTarget(lhs),],
-                    value=rhs,
-                ),
-            ]
+    return _stmt(
+        cst.Assign(
+            targets=[cst.AssignTarget(lhs),],
+            value=rhs,
         )
+    )

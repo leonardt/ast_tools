@@ -8,52 +8,12 @@ from libcst.metadata import ExpressionContext, ExpressionContextProvider
 from ast_tools.common import gen_free_prefix
 from ast_tools.cst_utils import InsertStatementsVisitor, DeepNode
 from ast_tools.cst_utils import to_module, make_assign
-from ast_tools.metadata.condition_provider import ConditionProvider
+from ast_tools.metadata import AlwaysReturnsProvider, IncrementalConditionProvider
 from ast_tools.transformers.node_replacer import NodeReplacer
 from ast_tools.stack import SymbolTable
 from . import Pass, PASS_ARGS_T
 
 __ALL__ = ['ssa']
-
-
-class AlwaysReturnsProvider(cst.BatchableMetadataProvider[bool]):
-    def _visit_simple_block(self,
-            node: tp.Union[cst.SimpleStatementLine, cst.SimpleStatementSuite]
-            ) -> tp.Optional[bool]:
-        for child in node.body:
-            if isinstance(child, cst.Return):
-                self.set_metadata(node, True)
-                return False
-        self.set_metadata(node, False)
-        return False
-
-    def visit_SimpleStatementLine(self,
-            node: cst.SimpleStatementLine,
-            ) -> tp.Optional[bool]:
-        return self._visit_simple_block(node)
-
-    def visit_SimpleStatementSuite(self,
-            node: cst.SimpleStatementLine,
-            ) -> tp.Optional[bool]:
-        return self._visit_simple_block(node)
-
-    def leave_IndentedBlock(self, node: cst.IndentedBlock) -> None:
-        for child in node.body:
-            if self.get_metadata(type(self), child, False):
-                self.set_metadata(node, True)
-                return
-        self.set_metadata(node, False)
-
-    def leave_If(self, node: cst.If) -> None:
-        if node.orelse is None:
-            self.set_metadata(node, False)
-        else:
-            self.set_metadata(node,
-                self.get_metadata(type(self), node.body, False)
-                and self.get_metadata(type(self), node.orelse, False))
-
-    def leave_Else(self, node: cst.Else) -> None:
-        self.set_metadata(node, self.get_metadata(type(self), node.body, False))
 
 
 
@@ -194,7 +154,7 @@ class NameTests(InsertStatementsVisitor):
 
 
 class SingleReturn(InsertStatementsVisitor):
-    METADATA_DEPENDENCIES = (ConditionProvider, AlwaysReturnsProvider)
+    METADATA_DEPENDENCIES = (IncrementalConditionProvider, AlwaysReturnsProvider)
 
     attr_format: tp.Optional[str]
     attr_states: tp.MutableMapping[str, tp.MutableSequence[_GAURDED_EXPR]]
@@ -259,8 +219,6 @@ class SingleReturn(InsertStatementsVisitor):
 
             if self.returns:
                 strict = self.strict
-                if strict:
-                    strict = not self.get_metadata(AlwaysReturnsProvider, original_node.body)
 
                 try:
                     return_val = _fold_conditions(_simplify_gaurds(self.returns), strict)
@@ -284,7 +242,7 @@ class SingleReturn(InsertStatementsVisitor):
         assert self.attr_format is not None
 
         assignments = []
-        cond = self.get_metadata(ConditionProvider, original_node)
+        cond = self.get_metadata(IncrementalConditionProvider, original_node)
 
         for name, attr in self.names_to_attr.items():
             assert isinstance(attr.value, cst.Name)
