@@ -1,64 +1,64 @@
+from abc import ABCMeta, abstractmethod
 import dataclasses
 import functools as ft
+import itertools as it
 import typing as tp
 
 import libcst as cst
 
-_STRIPPED_ATTRS: tp.AbstractSet[str] =  frozenset({
-        'header',
-        'footer',
-        'leading_lines',
-        'lines_after_decorators',
-        'lpar',
-        'rpar',
-})
 
-_WHITE_SPACE_ATTR: str = 'whitespace'
-
-class _Normalizer(cst.CSTTransformer):
-    in_whitespace: bool
-
-    def __init__(self):
-        self.in_whitespace = False
-
-    def on_visit(self, node: cst.CSTNode) -> tp.Optional[bool]:
-        if isinstance(node, (
-                cst.Comment,
-                cst.EmptyLine,
-                cst.Newline,
-                cst.ParenthesizedWhitespace,
-                cst.SimpleWhitespace,
-                cst.TrailingWhitespace,
-                cst.BaseParenthesizableWhitespace,
-                )):
-            self.in_whitespace = True
-            return False
-        else:
-            assert not self.in_whitespace
-            return super().on_visit(node)
+class FieldRemover(cst.CSTTransformer):
+    @abstractmethod
+    def skip_field(self, field: dataclasses.Field) -> bool: pass
 
     def on_leave(self,
             original_node: cst.CSTNode,
             updated_node: cst.CSTNode
             ) -> tp.Union[cst.CSTNode, cst.RemovalSentinel]:
-        if self.in_whitespace:
-            self.in_whitespace = False
-            return super().on_leave(original_node, updated_node)
-
         saved_fields = {}
         for field in dataclasses.fields(updated_node):
+            if self.skip_field(field):
+                continue
+
             n = field.name
-            # Hack to find whitespace fields
-            if (n not in _STRIPPED_ATTRS
-                and _WHITE_SPACE_ATTR not in n):
-                saved_fields[n] = getattr(updated_node, n)
+            saved_fields[n] = getattr(updated_node, n)
 
         final_node = type(updated_node)(**saved_fields)
         return super().on_leave(original_node, final_node)
 
 
+_WHITE_SPACE_TYPES: tp.Set[tp.Type[cst.CSTNode]] = frozenset((
+    cst.Comment,
+    cst.EmptyLine,
+    cst.Newline,
+    cst.ParenthesizedWhitespace,
+    cst.SimpleWhitespace,
+    cst.TrailingWhitespace,
+    cst.BaseParenthesizableWhitespace,
+))
+
+
+_WHITE_SPACE_SEQUENCE_TYPES: tp.Set[tp.Type] = frozenset(
+    tp.Sequence[t] for t in _WHITE_SPACE_TYPES
+)
+
+
+class WhiteSpaceNormalizer(FieldRemover):
+    def skip_field(self, field: dataclasses.Field) -> bool:
+        t = field.type
+        return t in _WHITE_SPACE_TYPES or t in _WHITE_SPACE_SEQUENCE_TYPES
+
+
+_PAREN_NAMES = ('lpar', 'rpar')
+
+
+class StripParens(FieldRemover):
+    def skip_field(self, field: dataclasses.Field) -> bool:
+        return field.name in _PAREN_NAMES
+
 def _normalize(node: cst.CSTNode):
-    node = node.visit(_Normalizer())
+    node = node.visit(StripParens())
+    node = node.visit(WhiteSpaceNormalizer())
     node.validate_types_deep()
     return node
 

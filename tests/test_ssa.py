@@ -121,14 +121,18 @@ def test_imbalanced(strict, a, b, c, d):
                 can_name_error = True
                 break
 
-    ssa_imbalanced = apply_passes([ssa(strict)])(imbalanced)
-    for x in (False, True):
-        for y in (False, True):
-            if can_name_error and strict:
-                with pytest.raises(NameError):
-                    ssa_imbalanced(x, y)
-            elif not can_name_error:
-                assert imbalanced(x, y) == ssa_imbalanced(x, y)
+    if can_name_error and strict:
+        with pytest.raises(SyntaxError):
+            ssa_imbalanced = apply_passes([ssa(strict)])(imbalanced)
+    else:
+        ssa_imbalanced = apply_passes([ssa(strict)])(imbalanced)
+        for x in (False, True):
+            for y in (False, True):
+                try:
+                    assert imbalanced(x, y) == ssa_imbalanced(x, y)
+                except NameError:
+                    assert can_name_error
+
 
 
 def test_reassign_arg():

@@ -13,6 +13,7 @@ _T = tp.Union[
         cst.BaseSmallStatement,
         cst.Module,
 ]
+
 def to_module(node: _T) -> cst.Module:
     if isinstance(node, cst.SimpleStatementSuite):
         return cst.Module(body=node.body)
@@ -30,14 +31,14 @@ def to_module(node: _T) -> cst.Module:
 
     raise TypeError(f'{node} :: {type(node)} cannot be cast to Module')
 
-def _stmt(node: cst.BaseSmallStatement) -> cst.SimpleStatementLine:
+def to_stmt(node: cst.BaseSmallStatement) -> cst.SimpleStatementLine:
     return cst.SimpleStatementLine(body=[node])
 
 def make_assign(
         lhs: cst.BaseAssignTargetExpression,
         rhs: cst.BaseExpression,
         ) -> cst.SimpleStatementLine:
-    return _stmt(
+    return to_stmt(
         cst.Assign(
             targets=[cst.AssignTarget(lhs),],
             value=rhs,

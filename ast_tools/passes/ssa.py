@@ -1,4 +1,5 @@
 from collections import ChainMap, Counter
+import builtins
 import functools as ft
 import typing as tp
 
@@ -10,6 +11,7 @@ from ast_tools.cst_utils import InsertStatementsVisitor, DeepNode
 from ast_tools.cst_utils import to_module, make_assign
 from ast_tools.metadata import AlwaysReturnsProvider, IncrementalConditionProvider
 from ast_tools.transformers.node_replacer import NodeReplacer
+from ast_tools.transformers.normalizers import ElifToElse
 from ast_tools.stack import SymbolTable
 from . import Pass, PASS_ARGS_T
 
@@ -319,22 +321,6 @@ def _wrap(tree: cst.CSTNode) -> cst.MetadataWrapper:
     return cst.MetadataWrapper(tree, unsafe_skip_copy=True)
 
 
-class ElifToElse(cst.CSTTransformer):
-    def leave_If(self,
-            original_node: cst.If,
-            updated_node: cst.If,
-            ) -> cst.If:
-        orelse = updated_node.orelse
-        if isinstance(orelse, cst.If):
-            orelse = cst.Else(
-                    body=cst.IndentedBlock(
-                        body=[orelse]
-                    )
-                )
-            updated_node = updated_node.with_changes(orelse=orelse)
-        return updated_node
-
-
 class SSATransformer(InsertStatementsVisitor):
     env: tp.Mapping[str, tp.Any]
     ctxs: tp.Mapping[cst.Name, ExpressionContext]
@@ -353,11 +339,11 @@ class SSATransformer(InsertStatementsVisitor):
             strict: bool = True,
             ):
         super().__init__(cst.codemod.CodemodContext())
-        self.env = env
+        self.env = ChainMap(env, env.get('__builtins__', builtins).__dict__)
         self.ctxs = ctxs
         self.scope = None
         self.name_idx = Counter()
-        self.name_table = ChainMap()
+        self.name_table = ChainMap({k: k for k in self.env})
         self.name_formats = {}
         self.final_names = final_names
         self.strict = strict
@@ -508,7 +494,10 @@ class SSATransformer(InsertStatementsVisitor):
             try:
                 return cst.Name(self.name_table[name])
             except KeyError:
-                return cst.Name(name)
+                if self.strict:
+                    raise SyntaxError(f'Cannot prove name `{name}` is defined')
+                else:
+                    return cst.Name(name)
         else:
             return cst.Name(self._make_name(name))
 
@@ -583,8 +572,8 @@ class ssa(Pass):
         # perform ssa
         wrapper = _wrap(to_module(tree))
         ctxs = wrapper.resolve(ExpressionContextProvider)
-        # These names were constructed in such a way that they are 
-        # guaranteed to be ssa and shouldn't be touched by the 
+        # These names were constructed in such a way that they are
+        # guaranteed to be ssa and shouldn't be touched by the
         # transformer
         final_names = single_return.added_names | name_tests.added_names
         ssa_transformer = SSATransformer(
