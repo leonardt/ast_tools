@@ -486,6 +486,12 @@ class SSATransformer(InsertStatementsVisitor):
         final_node = updated_node.with_changes(value=new_value)
         return super().leave_Attribute(original_node, final_node)
 
+    def leave_Arg(self, original_node: cst.Arg, updated_node: cst.Arg):
+        # Assumes that visiting the keyword doesn't affect the logic (since it
+        # should always be a read?). If so we can just discard any changes by
+        # reusing the original keyword node
+        return updated_node.with_changes(keyword=original_node.keyword)
+
     def leave_Name(self,
             original_node: cst.Name,
             updated_node: cst.Name) -> cst.Name:
