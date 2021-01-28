@@ -479,6 +479,13 @@ class SSATransformer(InsertStatementsVisitor):
     def visit_Attribute(self, node: cst.Attribute) -> tp.Optional[bool]:
         return False
 
+    def leave_Attribute(self,
+            original_node:  cst.Attribute,
+            updated_node: cst.Attribute) -> cst.Attribute:
+        new_value = updated_node.value.visit(self)
+        final_node = updated_node.with_changes(value=new_value)
+        return super().leave_Attribute(original_node, final_node)
+
     def leave_Name(self,
             original_node: cst.Name,
             updated_node: cst.Name) -> cst.Name:
