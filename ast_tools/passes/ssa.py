@@ -339,7 +339,7 @@ class SSATransformer(InsertStatementsVisitor):
             strict: bool = True,
             ):
         super().__init__(cst.codemod.CodemodContext())
-        self.env = ChainMap(env, env.get('__builtins__', builtins).__dict__)
+        self.env = ChainMap(env, builtins.__dict__)
         self.ctxs = ctxs
         self.scope = None
         self.name_idx = Counter()
