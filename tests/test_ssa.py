@@ -1,3 +1,4 @@
+from collections import namedtuple
 import inspect
 import random
 
@@ -348,3 +349,32 @@ def f1(cond):
 '''
     for cond in [True, False]:
         assert f1(cond) == f2(cond)
+
+
+def test_attr():
+    bar = namedtuple('bar', ['x', 'y'])
+
+    def f1(x, y):
+        z = bar(1, 0)
+        if x:
+            a = z
+        else:
+            a = y
+        a.x = 3
+        return a
+
+    f2 = apply_passes([ssa(False)])(f1)
+    assert inspect.getsource(f2) == '''\
+def f1(x, y):
+    _attr_a_x_0 = a.x
+    z_0 = bar(1, 0)
+    _cond_0 = x
+    a_0 = z_0
+    a_1 = y
+    a_2 = a_0 if _cond_0 else a_1
+    _attr_a_x_1 = 3
+    __0_final_a_x_0 = _attr_a_x_1
+    __0_return_0 = a_2
+    a_2.x = __0_final_a_x_0
+    return __0_return_0
+'''
