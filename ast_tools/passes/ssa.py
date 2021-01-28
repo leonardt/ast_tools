@@ -1,5 +1,6 @@
 from collections import ChainMap, Counter
 import builtins
+import types
 import functools as ft
 import typing as tp
 
@@ -339,7 +340,10 @@ class SSATransformer(InsertStatementsVisitor):
             strict: bool = True,
             ):
         super().__init__(cst.codemod.CodemodContext())
-        self.env = ChainMap(env, builtins.__dict__)
+        _builtins = env.get('__builtins__', builtins)
+        if isinstance(_builtins, types.ModuleType):
+            _builtins = builtins.__dict__
+        self.env = ChainMap(env, _builtins)
         self.ctxs = ctxs
         self.scope = None
         self.name_idx = Counter()
