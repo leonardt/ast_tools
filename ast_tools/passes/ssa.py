@@ -1,3 +1,4 @@
+import sys
 from collections import ChainMap, Counter
 import builtins
 import functools as ft
@@ -339,7 +340,10 @@ class SSATransformer(InsertStatementsVisitor):
             strict: bool = True,
             ):
         super().__init__(cst.codemod.CodemodContext())
-        self.env = ChainMap(env, env.get('__builtins__', builtins).__dict__)
+        builtins_dict = env.get('__builtins__', builtins)
+        if sys.version_info >= (3, 9):
+            builtins_dict = builtins_dict.__dict__
+        self.env = ChainMap(env, builtins_dict)
         self.ctxs = ctxs
         self.scope = None
         self.name_idx = Counter()
