@@ -331,6 +331,7 @@ class SSATransformer(InsertStatementsVisitor):
     name_formats: tp.MutableMapping[str, str]
     final_names: tp.AbstractSet[str]
     returning_blocks: tp.AbstractSet[cst.BaseSuite]
+    _in_keyword: bool
 
     def __init__(self,
             env: tp.Mapping[str, tp.Any],
@@ -352,6 +353,7 @@ class SSATransformer(InsertStatementsVisitor):
         self.final_names = final_names
         self.strict = strict
         self.returning_blocks = returning_blocks
+        self._in_keyword = False
 
 
     def _make_name(self, name):
@@ -490,15 +492,18 @@ class SSATransformer(InsertStatementsVisitor):
         final_node = updated_node.with_changes(value=new_value)
         return super().leave_Attribute(original_node, final_node)
 
-    def leave_Arg(self, original_node: cst.Arg, updated_node: cst.Arg):
-        # Assumes that visiting the keyword doesn't affect the logic (since it
-        # should always be a read?). If so we can just discard any changes by
-        # reusing the original keyword node
-        return updated_node.with_changes(keyword=original_node.keyword)
+    def visit_Arg_keyword(self, node: cst.Arg):
+        self._in_keyword = True
+
+    def leave_Arg_keyword(self, node: cst.Arg):
+        self._in_keyword = False
 
     def leave_Name(self,
             original_node: cst.Name,
             updated_node: cst.Name) -> cst.Name:
+        if self._in_keyword:
+            return updated_node
+
         name = updated_node.value
         # name is already ssa
         if name in self.final_names:
