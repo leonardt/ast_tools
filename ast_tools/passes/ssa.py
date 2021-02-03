@@ -178,6 +178,7 @@ class SingleReturn(InsertStatementsVisitor):
     def __init__(self,
             env: tp.Mapping[str, tp.Any],
             names_to_attr: tp.Mapping[str, cst.Attribute],
+            symbol_table_skip_targets: tp.AbstractSet[str],
             strict: bool = True,
             ):
 
@@ -192,7 +193,7 @@ class SingleReturn(InsertStatementsVisitor):
         self.scope = None
         self.tail = []
         self.added_names = set()
-        self.symbol_table_skip_targets = set()
+        self.symbol_table_skip_targets = symbol_table_skip_targets
         self.returning_blocks = set()
 
     def visit_FunctionDef(self,
@@ -374,6 +375,8 @@ class SSATransformer(InsertStatementsVisitor):
         if "ssa_symbol_table" in metadata:
             raise Exception("SSA symbol table already in metadata")
         metadata["ssa_symbol_table"] = self.ssa_symbol_table = defaultdict(dict)
+        # Skip lines before offset because it's part of init_reads, so not in
+        # user code
         self.symbol_table_offset = symbol_table_offset
         self.symbol_table_skip = False
 
@@ -554,12 +557,11 @@ class SSATransformer(InsertStatementsVisitor):
         else:
             new_name = self._make_name(name)
         line = self.get_metadata(PositionProvider, original_node).start.line
-        if (line > (self.symbol_table_offset + 1) and 
-                not self.symbol_table_skip):
-            # Skip lines before offset because it's part of init_reads, so not
-            # in user code (+ 1 for func def line)
+        if not self.symbol_table_skip:
             # TODO: What should we use if we have something like x = .... + x?
             # Should it be the original (read) value or the new (write) value?
+            # Based on the traversal order, right now it will get the assign
+            # target value
             offset_line = line - self.symbol_table_offset
             self.ssa_symbol_table[offset_line][name] = new_name
         return cst.Name(new_name)
@@ -587,6 +589,13 @@ class ssa(Pass):
         seen = set()
         name_to_attr_map = {}
 
+        # Statements that assign to these targets are skipped by the symbol
+        # table logic since it only involves compiler introduced code
+        # Needed to compute the proper offset so the symbols map to the
+        # original line in the user code (ignoring the lines introduced by the
+        # compiler)  
+        symbol_table_skip_targets = set()
+
         for written_attr in writter_attr_visitor.written_attrs:
             d_attr = DeepNode(written_attr)
             if d_attr in seen:
@@ -608,6 +617,7 @@ class ssa(Pass):
             names_to_attr[attr_name] = norm
             name = cst.Name(attr_name)
             replacer.add_replacement(written_attr, name)
+            symbol_table_skip_targets.add(name)
             init_reads.append(make_assign(name, norm))
             for line in writter_attr_visitor.position_table[written_attr]:
                 name_to_attr_map[attr_name] = to_module(written_attr).code
@@ -628,7 +638,8 @@ class ssa(Pass):
 
         # Transform to single return format
         wrapper = _wrap(tree)
-        single_return = SingleReturn(env, names_to_attr, self.strict)
+        single_return = SingleReturn(env, names_to_attr,
+                                     symbol_table_skip_targets, self.strict)
         tree = wrapper.visit(single_return)
 
         # insert the initial reads / final writes / return
