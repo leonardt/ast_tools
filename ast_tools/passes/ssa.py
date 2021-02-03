@@ -505,8 +505,6 @@ class SSATransformer(InsertStatementsVisitor):
             original_node: cst.Assign,
             updated_node: cst.Assign) -> cst.Assign:
         if (len(updated_node.targets) == 1 and
-                match.matches(updated_node.targets[0],
-                              match.AssignTarget()) and
                 updated_node.targets[0].target in self.symbol_table_skip_targets):
             self.symbol_table_skip = True
             self.symbol_table_offset += 1
