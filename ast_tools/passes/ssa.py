@@ -587,6 +587,9 @@ class ssa(Pass):
         init_reads = []
         names_to_attr = {}
         seen = set()
+
+        # Store the names introduced for attributes so we can map them to the
+        # original attribute in the symbol table (post ssa)
         name_to_attr_map = {}
 
         # Statements that assign to these targets are skipped by the symbol
