@@ -353,7 +353,7 @@ class SSATransformer(InsertStatementsVisitor):
             final_names: tp.AbstractSet[str],
             symbol_table_skip_targets: tp.AbstractSet[str],
             returning_blocks: tp.AbstractSet[cst.BaseSuite],
-            metadata: tp.MutableMapping,
+            ssa_symbol_table: tp.MutableMapping,
             strict: bool = True,
             ):
         super().__init__(cst.codemod.CodemodContext())
@@ -378,9 +378,7 @@ class SSATransformer(InsertStatementsVisitor):
         self.strict = strict
         self.returning_blocks = returning_blocks
         self._in_keyword = False
-        if "ssa_symbol_table" in metadata:
-            raise Exception("SSA symbol table already in metadata")
-        metadata["ssa_symbol_table"] = self.ssa_symbol_table = defaultdict(dict)
+        self.ssa_symbol_table = ssa_symbol_table
 
 
     def _make_name(self, name):
@@ -656,19 +654,22 @@ class ssa(Pass):
         # guaranteed to be ssa and shouldn't be touched by the
         # transformer
         final_names = single_return.added_names | name_tests.added_names
+        if "ssa_symbol_table" in metadata:
+            raise Exception("SSA symbol table already in metadata")
+        metadata["ssa_symbol_table"] = ssa_symbol_table = defaultdict(dict)
         ssa_transformer = SSATransformer(
                 env,
                 ctxs,
                 final_names,
                 single_return.symbol_table_skip_targets,
                 single_return.returning_blocks,
-                metadata,
+                ssa_symbol_table,
                 strict=self.strict)
         tree = wrapper.visit(ssa_transformer).body[0]
 
         # Map original attribute references to their ssa names
         # e.g. a.x -> _attr_a_x -> _attr_a_x_0
-        for map in metadata["ssa_symbol_table"].values():
+        for map in ssa_symbol_table.values():
             items = list(map.items())
             for k, v in items:
                 if k in name_to_attr_map:
