@@ -1,11 +1,13 @@
-from collections import ChainMap, Counter
+from collections import ChainMap, Counter, defaultdict
 import builtins
 import types
 import functools as ft
 import typing as tp
 
 import libcst as cst
-from libcst.metadata import ExpressionContext, ExpressionContextProvider
+import libcst.matchers as match
+from libcst.metadata import (ExpressionContext, ExpressionContextProvider,
+                             PositionProvider, MetadataWrapper)
 
 from ast_tools.common import gen_free_prefix
 from ast_tools.cst_utils import InsertStatementsVisitor, DeepNode
@@ -190,6 +192,7 @@ class SingleReturn(InsertStatementsVisitor):
         self.scope = None
         self.tail = []
         self.added_names = set()
+        self.symbol_table_skip_targets = set()
         self.returning_blocks = set()
 
     def visit_FunctionDef(self,
@@ -218,6 +221,7 @@ class SingleReturn(InsertStatementsVisitor):
                 # default writeback initial value
                 state.append(([], cst.Name(name)))
                 attr_val = _fold_conditions(_simplify_gaurds(state), self.strict)
+                self.symbol_table_skip_targets.add(attr)
                 tail.append(make_assign(attr, attr_val))
 
             if self.returns:
@@ -258,8 +262,10 @@ class SingleReturn(InsertStatementsVisitor):
                     )
                 )
             self.added_names.add(attr_name.value)
+            self.symbol_table_skip_targets.add(attr_name)
             state.append((cond, attr_name))
-            assignments.append(make_assign(attr_name, cst.Name(name)))
+            node = make_assign(attr_name, cst.Name(name))
+            assignments.append(node)
 
         r_name = cst.Name(value=self.return_format.format(len(self.returns)))
         self.added_names.add(r_name.value)
@@ -295,19 +301,23 @@ class SingleReturn(InsertStatementsVisitor):
 
 
 class WrittenAttrs(cst.CSTVisitor):
-    METADATA_DEPENDENCIES = (ExpressionContextProvider,)
+    METADATA_DEPENDENCIES = (ExpressionContextProvider, PositionProvider)
 
     written_attrs: tp.MutableSet[cst.Attribute]
 
     def __init__(self):
         self.written_attrs = set()
-
+        self.position_table = {}
 
     def visit_Attribute(self,
             node: cst.Attribute) -> tp.Optional[bool]:
         ctx = self.get_metadata(ExpressionContextProvider, node)
         if ctx is ExpressionContext.STORE:
             self.written_attrs.add(node)
+            line = self.get_metadata(PositionProvider, node).start.line
+            if node not in self.position_table:
+                self.position_table[node] = []
+            self.position_table[node].append(line)
 
 
 class AttrReplacer(NodeReplacer):
@@ -323,6 +333,9 @@ def _wrap(tree: cst.CSTNode) -> cst.MetadataWrapper:
 
 
 class SSATransformer(InsertStatementsVisitor):
+    METADATA_DEPENDENCIES = (InsertStatementsVisitor.METADATA_DEPENDENCIES +
+                             (PositionProvider,))
+
     env: tp.Mapping[str, tp.Any]
     ctxs: tp.Mapping[cst.Name, ExpressionContext]
     scope: tp.Optional[cst.FunctionDef]
@@ -330,6 +343,7 @@ class SSATransformer(InsertStatementsVisitor):
     name_idx: Counter
     name_formats: tp.MutableMapping[str, str]
     final_names: tp.AbstractSet[str]
+    symbol_table_skip_targets: tp.AbstractSet[str]
     returning_blocks: tp.AbstractSet[cst.BaseSuite]
     _in_keyword: bool
 
@@ -337,7 +351,10 @@ class SSATransformer(InsertStatementsVisitor):
             env: tp.Mapping[str, tp.Any],
             ctxs: tp.Mapping[cst.Name, ExpressionContext],
             final_names: tp.AbstractSet[str],
+            symbol_table_skip_targets: tp.AbstractSet[str],
             returning_blocks: tp.AbstractSet[cst.BaseSuite],
+            metadata: tp.MutableMapping,
+            symbol_table_offset: int,
             strict: bool = True,
             ):
         super().__init__(cst.codemod.CodemodContext())
@@ -351,9 +368,15 @@ class SSATransformer(InsertStatementsVisitor):
         self.name_table = ChainMap({k: k for k in self.env})
         self.name_formats = {}
         self.final_names = final_names
+        self.symbol_table_skip_targets = symbol_table_skip_targets
         self.strict = strict
         self.returning_blocks = returning_blocks
         self._in_keyword = False
+        if "ssa_symbol_table" in metadata:
+            raise Exception("SSA symbol table already in metadata")
+        metadata["ssa_symbol_table"] = self.ssa_symbol_table = defaultdict(dict)
+        self.symbol_table_offset = symbol_table_offset
+        self.symbol_table_skip = False
 
 
     def _make_name(self, name):
@@ -399,6 +422,8 @@ class SSATransformer(InsertStatementsVisitor):
             original_node: cst.If,
             updated_node: cst.If,
             ) -> tp.Union[cst.If, cst.RemovalSentinel]:
+        # Since NameTests introduces an extra line per if
+        self.symbol_table_offset += 1
         t_returns = original_node.body in self.returning_blocks
         if original_node.orelse is not None:
             f_returns = original_node.orelse.body in self.returning_blocks
@@ -477,8 +502,16 @@ class SSATransformer(InsertStatementsVisitor):
     def leave_Assign(self,
             original_node: cst.Assign,
             updated_node: cst.Assign) -> cst.Assign:
+        if (len(updated_node.targets) == 1 and
+                match.matches(updated_node.targets[0],
+                              match.AssignTarget()) and
+                updated_node.targets[0].target in self.symbol_table_skip_targets):
+            self.symbol_table_skip = True
+            self.symbol_table_offset += 1
         new_value = updated_node.value.visit(self)
         new_targets =  [t.visit(self) for t in updated_node.targets]
+        if self.symbol_table_skip:
+            self.symbol_table_skip = False
         final_node = updated_node.with_changes(value=new_value, targets=new_targets)
         return super().leave_Assign(original_node, final_node)
 
@@ -514,14 +547,23 @@ class SSATransformer(InsertStatementsVisitor):
             # Names in Load context should not be added to the name table
             # as it makes them seem like they have been modified.
             try:
-                return cst.Name(self.name_table[name])
+                new_name = self.name_table[name]
             except KeyError:
                 if self.strict:
                     raise SyntaxError(f'Cannot prove name `{name}` is defined')
-                else:
-                    return cst.Name(name)
+                new_name = name
         else:
-            return cst.Name(self._make_name(name))
+            new_name = self._make_name(name)
+        line = self.get_metadata(PositionProvider, original_node).start.line
+        if (line > (self.symbol_table_offset + 1) and 
+                not self.symbol_table_skip):
+            # Skip lines before offset because it's part of init_reads, so not
+            # in user code (+ 1 for func def line)
+            # TODO: What should we use if we have something like x = .... + x?
+            # Should it be the original (read) value or the new (write) value?
+            offset_line = line - self.symbol_table_offset
+            self.ssa_symbol_table[offset_line][name] = new_name
+        return cst.Name(new_name)
 
 
 class ssa(Pass):
@@ -544,6 +586,7 @@ class ssa(Pass):
         init_reads = []
         names_to_attr = {}
         seen = set()
+        name_to_attr_map = {}
 
         for written_attr in writter_attr_visitor.written_attrs:
             d_attr = DeepNode(written_attr)
@@ -567,6 +610,9 @@ class ssa(Pass):
             name = cst.Name(attr_name)
             replacer.add_replacement(written_attr, name)
             init_reads.append(make_assign(name, norm))
+            for line in writter_attr_visitor.position_table[written_attr]:
+                name_to_attr_map[attr_name] = to_module(written_attr).code
+
 
         # Replace references to attr with the name generated above
         tree = tree.visit(replacer)
@@ -602,9 +648,21 @@ class ssa(Pass):
                 env,
                 ctxs,
                 final_names,
+                single_return.symbol_table_skip_targets,
                 single_return.returning_blocks,
+                metadata,
+                len(init_reads),
                 strict=self.strict)
-        tree = tree.visit(ssa_transformer)
+        tree = wrapper.visit(ssa_transformer).body[0]
+
+        # Map original attribute references to their ssa names
+        # e.g. a.x -> _attr_a_x -> _attr_a_x_0
+        for map in metadata["ssa_symbol_table"].values():
+            items = list(map.items())
+            for k, v in items:
+                if k in name_to_attr_map:
+                    del map[k]
+                    map[name_to_attr_map[k]] = v
 
         tree.validate_types_deep()
         return tree, env, metadata
