@@ -368,17 +368,20 @@ class SSATransformer(InsertStatementsVisitor):
         self.name_table = ChainMap({k: k for k in self.env})
         self.name_formats = {}
         self.final_names = final_names
+
+        # Track which assign targets to skip (compiler introduced lines)
         self.symbol_table_skip_targets = symbol_table_skip_targets
+        # Used to track the line offset for skipped lines
+        self.symbol_table_offset = symbol_table_offset
+        # Used to track when to skip adding names to symbol table
+        self.symbol_table_skip = False
+
         self.strict = strict
         self.returning_blocks = returning_blocks
         self._in_keyword = False
         if "ssa_symbol_table" in metadata:
             raise Exception("SSA symbol table already in metadata")
         metadata["ssa_symbol_table"] = self.ssa_symbol_table = defaultdict(dict)
-        # Skip lines before offset because it's part of init_reads, so not in
-        # user code
-        self.symbol_table_offset = symbol_table_offset
-        self.symbol_table_skip = False
 
 
     def _make_name(self, name):
