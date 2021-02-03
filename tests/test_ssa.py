@@ -373,16 +373,16 @@ def test_attr():
                     metadata: tp.MutableMapping) -> PASS_ARGS_T:
             assert "ssa_symbol_table" in metadata
             assert str(metadata["ssa_symbol_table"]) == (
-                "defaultdict(<class 'dict'>, {"           #  1.    def f1(x, y):
-                "2: {'bar': 'bar', 'z': 'z_0'}, "         #  2.        z = bar(1, 0)
-                "3: {'x': 'x'}, "                         #  3.        if x:
-                "4: {'z': 'z_0', 'a': 'a_0'}, "           #  4.            a = z
-                                                          #  5.        else:
-                "6: {'y': 'y', 'a': 'a_1'}, "             #  6.            a = y
-                "7: {'x': 'x', 'y': 'y'}, "               #  7.        if x & y:
-                "8: {'a': 'a_2'}, "                       #  8.            return a
-                "9: {'z': 'z_0', 'a.x': '_attr_a_x_1'}, " #  9.        a.x = z
-                "10: {'a': 'a_2'}})"                      # 10.        return a
+                "defaultdict(<class 'dict'>, {"  # noqa      1. def f1(x, y):
+                "2: {'bar': 'bar', 'z': 'z_0'}, "  # noqa    2.     z = bar(1, 0)
+                "3: {'x': 'x'}, "  # noqa                    3.     if x:
+                "4: {'z': 'z_0', 'a': 'a_0'}, "   # noqa     4.         a = z
+                                                          #  5.     else:
+                "6: {'y': 'y', 'a': 'a_1'}, "  # noqa        6.         a = y
+                "7: {'x': 'x', 'y': 'y'}, "   # noqa         7.     if x & y:
+                "8: {'a': 'a_2'}, "   # noqa                 8.         return a
+                "9: {'z': 'z_0', 'a.x': '_attr_a_x_1'}, "  # 9.     a.x = z
+                "10: {'a': 'a_2'}})"   # noqa               10.     return a
             )
             return tree, env, metadata
 
