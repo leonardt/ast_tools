@@ -264,8 +264,7 @@ class SingleReturn(InsertStatementsVisitor):
             self.added_names.add(attr_name.value)
             self.symbol_table_skip_targets.add(attr_name)
             state.append((cond, attr_name))
-            node = make_assign(attr_name, cst.Name(name))
-            assignments.append(node)
+            assignments.append(make_assign(attr_name, cst.Name(name)))
 
         r_name = cst.Name(value=self.return_format.format(len(self.returns)))
         self.added_names.add(r_name.value)
