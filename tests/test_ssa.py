@@ -372,26 +372,26 @@ def test_attr():
                     env: SymbolTable,
                     metadata: tp.MutableMapping) -> PASS_ARGS_T:
             assert "ssa_symbol_table" in metadata
-#       def f1(x, y):
-# 1.        z = bar(1, 0)
-# 2.        if x:
-# 3.            a = z
-# 4.        else:
-# 5.            a = y
-# 6.        if x & y:
-# 7.            return a
-# 8.        a.x = z
-# 9.        return a
+#  1.    def f1(x, y):
+#  2.        z = bar(1, 0)
+#  3.        if x:
+#  4.            a = z
+#  5.        else:
+#  6.            a = y
+#  7.        if x & y:
+#  8.            return a
+#  9.        a.x = z
+# 10.        return a
             assert str(metadata["ssa_symbol_table"]) == """\
 defaultdict(<class 'dict'>, {\
-1: {'bar': 'bar', 'z': 'z_0'}, \
-2: {'x': 'x'}, \
-3: {'z': 'z_0', 'a': 'a_0'}, \
-5: {'y': 'y', 'a': 'a_1'}, \
-6: {'x': 'x', 'y': 'y'}, \
-7: {'a': 'a_2'}, \
-8: {'z': 'z_0', 'a.x': '_attr_a_x_1'}, \
-9: {'a': 'a_2'}})\
+2: {'bar': 'bar', 'z': 'z_0'}, \
+3: {'x': 'x'}, \
+4: {'z': 'z_0', 'a': 'a_0'}, \
+6: {'y': 'y', 'a': 'a_1'}, \
+7: {'x': 'x', 'y': 'y'}, \
+8: {'a': 'a_2'}, \
+9: {'z': 'z_0', 'a.x': '_attr_a_x_1'}, \
+10: {'a': 'a_2'}})\
 """
             return tree, env, metadata
 

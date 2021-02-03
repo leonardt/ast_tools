@@ -354,7 +354,6 @@ class SSATransformer(InsertStatementsVisitor):
             symbol_table_skip_targets: tp.AbstractSet[str],
             returning_blocks: tp.AbstractSet[cst.BaseSuite],
             metadata: tp.MutableMapping,
-            symbol_table_offset: int,
             strict: bool = True,
             ):
         super().__init__(cst.codemod.CodemodContext())
@@ -372,7 +371,7 @@ class SSATransformer(InsertStatementsVisitor):
         # Track which assign targets to skip (compiler introduced lines)
         self.symbol_table_skip_targets = symbol_table_skip_targets
         # Used to track the line offset for skipped lines
-        self.symbol_table_offset = symbol_table_offset
+        self.symbol_table_offset = 0
         # Used to track when to skip adding names to symbol table
         self.symbol_table_skip = False
 
@@ -664,7 +663,6 @@ class ssa(Pass):
                 single_return.symbol_table_skip_targets,
                 single_return.returning_blocks,
                 metadata,
-                len(init_reads),
                 strict=self.strict)
         tree = wrapper.visit(ssa_transformer).body[0]
 
