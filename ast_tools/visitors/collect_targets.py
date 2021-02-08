@@ -1,28 +1,29 @@
 """
 Defines a visitor that collects all assignment targets contained in an AST
 """
-import ast
 import functools
+
+import libcst as cst
 
 def _filt(t):
     def wrapped(obj):
         return isinstance(obj, t)
     return wrapped
 
-class TargetCollector(ast.NodeVisitor):
+class TargetCollector(cst.CSTVisitor):
     def __init__(self, target_filter=None):
         if target_filter is None:
-            target_filter = ast.AST
+            target_filter = cst.CSTNode
         self.target_filter = _filt(target_filter)
         self.targets = []
 
-    def visit_Assign(self, node: ast.Assign):
-        self.targets.extend(filter(self.target_filter, node.targets))
+    def visit_Assign(self, node: cst.Assign):
+        self.targets.extend(filter(self.target_filter, (n.target for n in node.targets)))
 
 
 def collect_targets(tree, target_filter=None):
     visitor = TargetCollector(target_filter)
-    visitor.visit(tree)
+    tree.visit(visitor)
     return visitor.targets
 
 

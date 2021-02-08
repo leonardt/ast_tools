@@ -1,6 +1,7 @@
-import ast
-import warnings
 import typing as tp
+import warnings
+
+import libcst as cst
 
 from . import Pass
 from . import PASS_ARGS_T
@@ -11,22 +12,25 @@ from ast_tools.stack import SymbolTable
 __ALL__ = ['if_to_phi']
 
 
-class IfExpTransformer(ast.NodeTransformer):
+class IfExpTransformer(cst.CSTTransformer):
     def __init__(self, phi_name: str):
         self.phi_name = phi_name
 
-    def visit_IfExp(self, node: ast.IfExp):
-        test = self.visit(node.test)
-        body = self.visit(node.body)
-        orelse = self.visit(node.orelse)
-        return ast.Call(
-                func=ast.Name(
-                    id=self.phi_name,
-                    ctx=ast.Load()
-                ),
-                args=[test, body, orelse],
-                keywords=[]
-            )
+    def leave_IfExp(
+            self,
+            original_node: cst.IfExp,
+            updated_node: cst.IfExp,
+            ):
+        return cst.Call(
+                func=cst.Name(value=self.phi_name),
+                args=[
+                    cst.Arg(value=v) for v in (
+                        updated_node.test,
+                        updated_node.body,
+                        updated_node.orelse
+                    )
+                ],
+        )
 
 class if_to_phi(Pass):
     '''
@@ -52,7 +56,7 @@ class if_to_phi(Pass):
         self.phi_name_prefix = phi_name_prefix
 
     def rewrite(self,
-            tree: ast.AST,
+            tree: cst.CSTNode,
             env: SymbolTable,
             metadata: tp.MutableMapping) -> PASS_ARGS_T:
 
@@ -63,6 +67,5 @@ class if_to_phi(Pass):
             phi_name = self.phi
 
         visitor = IfExpTransformer(phi_name)
-        tree = visitor.visit(tree)
-
+        tree = tree.visit(visitor)
         return tree, env, metadata

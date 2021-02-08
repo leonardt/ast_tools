@@ -1,43 +1,50 @@
-import ast
-from copy import deepcopy
-import astor
+import typing as tp
+
+import libcst as cst
+
 from .symbol_replacer import replace_symbols
 from ..macros import unroll
+from ast_tools.cst_utils import to_module, InsertStatementsVisitor
 
-
-def is_call(node):
-    return isinstance(node, ast.Call)
-
-
-def is_name(node):
-    return isinstance(node, ast.Name)
-
-
-class Unroller(ast.NodeTransformer):
-    def __init__(self, env):
+class Unroller(InsertStatementsVisitor):
+    def __init__(self, env: tp.Mapping[str, tp.Any]):
+        super().__init__(cst.codemod.CodemodContext())
         self.env = env
 
-    def visit_For(self, node):
-        node = super().generic_visit(node)
+    def leave_For(
+            self,
+            original_node: cst.For,
+            updated_node: cst.For) -> cst.CSTNode:
+
         try:
-            iter_obj = eval(astor.to_source(node.iter), {}, self.env)
+            iter_obj = eval(to_module(updated_node.iter).code, {}, self.env)
             is_constant = True
         except Exception as e:
             is_constant = False
         if is_constant and isinstance(iter_obj, unroll):
             body = []
+            if not isinstance(updated_node.target, cst.Name):
+                raise NotImplementedError('Unrolling with non-name target')
+
             for i in iter_obj:
-                if not isinstance(i, int):
-                    raise NotImplementedError("Unrolling over iterator of"
-                                              "non-int")
-                symbol_table = {node.target.id: ast.Num(i, kind=None)}
-                for child in node.body:
-                    body.append(
-                        replace_symbols(deepcopy(child), symbol_table)
-                    )
-            return body
-        return node
+                if isinstance(i, int):
+                    symbol_table = {updated_node.target.value: cst.Integer(value=repr(i))}
+                    for child in updated_node.body.body:
+                        body.append(
+                            replace_symbols(child, symbol_table)
+                        )
+                else:
+                    raise NotImplementedError('Unrolling non-int iterator')
+
+            self.insert_statements_after_current(body)
+            updated_node = cst.RemoveFromParent()
+        return super().leave_For(original_node, updated_node)
 
 
-def unroll_for_loops(tree, env):
-    return Unroller(env).visit(tree)
+def unroll_for_loops(tree: cst.CSTNode, env: tp.Mapping[str, tp.Any]) -> cst.CSTNode:
+    visitor = Unroller(env)
+    if isinstance(tree, cst.Module):
+        return tree.visit(visitor)
+    else:
+        new_body = tree.body.visit(visitor)
+        return tree.with_changes(body=new_body)

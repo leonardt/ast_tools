@@ -1,24 +1,34 @@
-import ast
 from functools import lru_cache
+import typing as tp
 
-class UsedNames(ast.NodeVisitor):
+import libcst as cst
+from libcst.metadata import ScopeProvider
+
+from ast_tools.cst_utils import to_module
+
+class UsedNames(cst.CSTVisitor):
+    METADATA_DEPENDENCIES = (ScopeProvider,)
+
     def __init__(self):
-        self.names = set()
+        super().__init__()
+        self.names: tp.MutableSet[str] = set()
+        self.scope: tp.Optional[cst.metadata.Scope] = None
 
-    def visit_Name(self, node: ast.Name):
-        self.names.add(node.id)
+    def on_visit(self, node: cst.CSTNode):
+        if self.scope is None:
+            self.scope = self.get_metadata(ScopeProvider, node)
 
-    def visit_FunctionDef(self, node: ast.FunctionDef):
-        self.names.add(node.name)
+        return super().on_visit(node)
 
-    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef):
-        self.names.add(node.name)
 
-    def visit_ClassDef(self, node: ast.ClassDef):
-        self.names.add(node.name)
+    def visit_Name(self, node: cst.Name):
+        if node in self.scope.assignments:
+            self.names.add(node.value)
 
 @lru_cache()
-def used_names(tree: ast.AST):
+def used_names(tree: cst.CSTNode):
+    tree = to_module(tree)
     visitor = UsedNames()
-    visitor.visit(tree)
+    wrapper = cst.MetadataWrapper(tree, unsafe_skip_copy=True)
+    wrapper.visit(visitor)
     return visitor.names

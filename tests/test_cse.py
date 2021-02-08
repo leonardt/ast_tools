@@ -1,8 +1,11 @@
 import ast
 import inspect
 
+import pytest
+
 from ast_tools.passes import apply_ast_passes, cse, ssa, debug
 
+@pytest.mark.skip()
 def test_basic():
     @apply_ast_passes([ssa(), cse()])
     def foo(a, b, c):

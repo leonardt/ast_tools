@@ -1,19 +1,23 @@
 import inspect
-import ast
-import astor
-from ast_tools.transformers.loop_unroller import unroll_for_loops
-from ast_tools.passes import begin_rewrite, end_rewrite, loop_unroll
-import ast_tools
+
 import pytest
+
+import libcst as cst
+
+import ast_tools
+from ast_tools.transformers.loop_unroller import unroll_for_loops
+from ast_tools.passes import apply_passes, loop_unroll
+from ast_tools.cst_utils import to_module
+
 
 
 def test_basic_unroll():
-    tree = ast.parse("""
+    src = """\
 def foo():
     for i in ast_tools.macros.unroll(range(8)):
         print(i)
-""")
-    assert astor.to_source(unroll_for_loops(tree, globals())) == """\
+"""
+    unrolled_src = """\
 def foo():
     print(0)
     print(1)
@@ -24,10 +28,13 @@ def foo():
     print(6)
     print(7)
 """
+    tree = cst.parse_module(src)
+    unrolled_tree = unroll_for_loops(tree, globals())
+    assert to_module(unrolled_tree).code == unrolled_src
 
 
 def test_basic_inside_if():
-    tree = ast.parse("""
+    src = """\
 def foo(x):
     if x:
         for i in ast_tools.macros.unroll(range(8)):
@@ -37,8 +44,8 @@ def foo(x):
         print(x)
         for j in ast_tools.macros.unroll(range(2)):
             print(j - 1)
-""")
-    assert astor.to_source(unroll_for_loops(tree, globals())) == """\
+"""
+    unrolled_src = """\
 def foo(x):
     if x:
         print(0)
@@ -55,16 +62,19 @@ def foo(x):
         print(0 - 1)
         print(1 - 1)
 """
+    tree = cst.parse_module(src)
+    unrolled_tree = unroll_for_loops(tree, globals())
+    assert to_module(unrolled_tree).code == unrolled_src
 
 
 def test_basic_inside_while():
-    tree = ast.parse("""
+    src = """\
 def foo(x):
     while True:
         for i in ast_tools.macros.unroll(range(8)):
             print(i)
-""")
-    assert astor.to_source(unroll_for_loops(tree, globals())) == """\
+"""
+    unrolled_src = """\
 def foo(x):
     while True:
         print(0)
@@ -76,26 +86,30 @@ def foo(x):
         print(6)
         print(7)
 """
+    tree = cst.parse_module(src)
+    unrolled_tree = unroll_for_loops(tree, globals())
+    assert to_module(unrolled_tree).code == unrolled_src
 
 
 def test_basic_env():
-    tree = ast.parse("""
+    src = """\
 def foo(x):
     for i in ast_tools.macros.unroll(range(j)):
         print(i)
-""")
-    env = dict(globals(), **{"j": 2})
-    assert astor.to_source(unroll_for_loops(tree, env)) == """\
+"""
+    unrolled_src = """\
 def foo(x):
     print(0)
     print(1)
 """
+    env = dict(globals(), **{"j": 2})
+    tree = cst.parse_module(src)
+    unrolled_tree = unroll_for_loops(tree, env)
+    assert to_module(unrolled_tree).code == unrolled_src
 
 
 def test_pass_basic():
-    @end_rewrite()
-    @loop_unroll()
-    @begin_rewrite()
+    @apply_passes([loop_unroll()])
     def foo():
         for i in ast_tools.macros.unroll(range(8)):
             print(i)
@@ -114,9 +128,7 @@ def foo():
 
 def test_pass_env():
     j = 3
-    @end_rewrite()
-    @loop_unroll()
-    @begin_rewrite()
+    @apply_passes([loop_unroll()])
     def foo():
         for i in ast_tools.macros.unroll(range(j)):
             print(i)
@@ -129,9 +141,7 @@ def foo():
 
 
 def test_pass_nested():
-    @end_rewrite()
-    @loop_unroll()
-    @begin_rewrite()
+    @apply_passes([loop_unroll()])
     def foo():
         for i in ast_tools.macros.unroll(range(2)):
             for j in ast_tools.macros.unroll(range(3)):
@@ -149,9 +159,7 @@ def foo():
 
 def test_pass_no_unroll():
     j = 3
-    @end_rewrite()
-    @loop_unroll()
-    @begin_rewrite()
+    @apply_passes([loop_unroll()])
     def foo():
         for i in range(j):
             print(i)
@@ -164,9 +172,7 @@ def foo():
 
 def test_pass_no_unroll_nested():
     j = 3
-    @end_rewrite()
-    @loop_unroll()
-    @begin_rewrite()
+    @apply_passes([loop_unroll()])
     def foo():
         for i in range(j):
             for k in ast_tools.macros.unroll(range(3)):
@@ -194,9 +200,7 @@ def test_pass_no_rewrite_range():
 
 def test_bad_iter():
     with pytest.raises(Exception):
-        @end_rewrite()
-        @loop_unroll()
-        @begin_rewrite()
+        @apply_passes([loop_unroll()])
         def foo():
             count = 0
             for k in ast_tools.macros.unroll([object(), object()]):
@@ -206,9 +210,7 @@ def test_bad_iter():
 
 def test_list_of_ints():
     j = [1, 2, 3]
-    @end_rewrite()
-    @loop_unroll()
-    @begin_rewrite()
+    @apply_passes([loop_unroll()])
     def foo():
         for i in ast_tools.macros.unroll(j):
             print(i)
