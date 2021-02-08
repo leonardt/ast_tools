@@ -52,12 +52,12 @@ setup(
     url='https://github.com/leonardt/ast_tools',
     author='Leonard Truong',
     author_email='lenny@cs.stanford.edu',
-    version='0.1.1',
+    version='0.1.2',
     description='Toolbox for working with the Python AST',
     scripts=[],
     packages=[
         f'{PACKAGE_NAME}',
-        f'{PACKAGE_NAME}.cst_utils'
+        f'{PACKAGE_NAME}.cst_utils',
         f'{PACKAGE_NAME}.passes',
         f'{PACKAGE_NAME}.transformers',
         f'{PACKAGE_NAME}.visitors',
