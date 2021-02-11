@@ -13,48 +13,39 @@ pip install ast_tools
 
 # Passes
 ast_tools provides a number of passes for rewriting function and classes (could
-also work at the module level however no such pass exists). Passes can be
-applied in one of two ways:
+also work at the module level however no such pass exists). Passes are
+applied with the `apply_passes` decorator:
 
 ```python
-@apply_ast_passes([pass1(), pass2()])
-def foo(...): ...
-
-@end_rewrite()
-@pass2()
-@pass1()
-@begin_rewrite()
+@apply_passes([pass1(), pass2()])
 def foo(...): ...
 ```
 Each pass takes as arguments an AST, an environment, and metadata and
 returns (possibly) modified versions of each.
-`apply_ast_pass` and `begin_rewrite` begin a chain of rewrites by first looking
+`apply_passes` begins a chain of rewrites by first looking
 up the ast of the decorated object and gather attempts to gather locals
 and globals from the call site to build the environment.
 
-After all rewrites have run `apply_ast_pass` / `end_rewrite` serialize and
+After all rewrites have run `apply_passes` serializes and
 execute the rewritten ast.
 
 ## Know Issues
 ### Collecting the AST
-`apply_ast_pass` and `begin_rewrite` rely on `inspect.getsource` to get the
+`apply_passes` relies on `inspect.getsource` to get the
 source of the decorated definition (which is then parsed to get the initial ast).
 However, `inspect.getsource` has many limitations.
 
 ### Collecting the Environment
-`apply_ast_pass` and `begin_rewrite` do there best to infer the environment
+`apply_passes` does its best to infer the environment
 however there is no way to do this in a fully correct way.  Users are
 encouraged to pass environment explicitly:
 ```python
-@apply_ast_passes(..., env=SymbolTable(locals(), globals()))
-def foo(...): ...
-
-@begin_rewrite(env=SymbolTable(locals(), globals()))
+@apply_passes(..., env=SymbolTable(locals(), globals()))
 def foo(...): ...
 ```
 
 ### Wrapping terminal passes
-Terminal passes `begin_rewrite` / `end_rewrite` / `apply_ast_passes` must not be
+The terminal pass `apply_passes` must not be
 wrapped.
 
 As decorators are a part of the AST of the object they are applied to
@@ -62,7 +53,7 @@ they must be removed from the rewritten AST before it is executed.  If they
 are not removed rewrites will recurse infinitely as
 
 ```python
-@apply_ast_passes([...])
+@apply_passes([...])
 def foo(...): ...
 ```
 
@@ -70,14 +61,13 @@ would become
 
 ```python
 exec('''\
-@apply_ast_passes([...])
+@apply_passes([...])
 def rewritten_foo(...): ...
 ''')
 ```
-Note: this would invoke `apply_ast_passes([...])` on `rewritten_foo`
+Note: this would invoke `apply_passes([...])` on `rewritten_foo`
 
-To avoid this the terminating pass filters itself (and other decorators in the
-rewrite group in the begin / end style) from the decorator list.  If however
+To avoid this the terminating pass filters itself from the decorator list.  If however
 the terminals are wrapped this filter will fail.
 
 ### Inner decorators are called multiple times
@@ -101,11 +91,9 @@ of the function definition)
 
 For example,
 ```python
-from ast_tools.passes import begin_rewrite, loop_unroll, end_rewrite
+from ast_tools.passes import apply_passes, loop_unroll
 
-@end_rewrite()
-@loop_unroll()
-@begin_rewrite()
+@apply_passes([loop_unroll()])
 def foo():
     for i in ast_tools.macros.unroll(range(8)):
         print(i)
@@ -126,10 +114,10 @@ def foo():
 You can also use a list of `int`s, here's an example that also uses a reference
 to a variable defined in the outer scope:
 ```python
-from ast_tools.passes import apply_ast_passes, loop_unroll
+from ast_tools.passes import apply_passes, loop_unroll
 
 j = [1, 2, 3]
-@apply_ast_passes([loop_unroll()])
+@apply_passes([loop_unroll()])
 def foo():
     for i in ast_tools.macros.unroll(j):
         print(i)
@@ -154,11 +142,11 @@ this pattern will be ignored by the rewrite logic.
 Here's an example
 ```python
 from ast_tools.macros import inline
-from ast_tools.passes import apply_ast_passes, if_inline
+from ast_tools.passes import apply_passes, if_inline
 
 y = True
 
-@apply_ast_passes([if_inline()])
+apply_passes([if_inline()])
 def foo(x):
     if inline(y):
         return x + 1
