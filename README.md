@@ -44,9 +44,8 @@ encouraged to pass environment explicitly:
 def foo(...): ...
 ```
 
-### Wrapping terminal passes
-The terminal pass `apply_passes` must not be
-wrapped.
+### Wrapping the apply_passes decorator
+The `apply_passes` must not be wrapped.
 
 As decorators are a part of the AST of the object they are applied to
 they must be removed from the rewritten AST before it is executed.  If they
@@ -67,8 +66,8 @@ def rewritten_foo(...): ...
 ```
 Note: this would invoke `apply_passes([...])` on `rewritten_foo`
 
-To avoid this the terminating pass filters itself from the decorator list.  If however
-the terminals are wrapped this filter will fail.
+To avoid this the `apply_passes` decoratorfilters itself from the decorator list.  If however
+the decorator is wrapped inside another decorator, this will fail.
 
 ### Inner decorators are called multiple times
 
