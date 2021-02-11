@@ -205,14 +205,15 @@ class _apply_passes(metaclass=ABCMeta):
 
         etree = self.strip_decorators(tree, env, type(self), None)
         stree = self.strip_decorators(tree, env, type(self), type(self))
-        return self.exec(etree, stree, env)
+        return self.exec(etree, stree, env, metadata)
 
 
 class apply_ast_passes(_apply_passes):
     parse = staticmethod(get_ast)
     strip_decorators = staticmethod(_ASTStripper.strip)
 
-    def exec(self, etree: ast.AST, stree: ast.AST, env: SymbolTable):
+    def exec(self, etree: ast.AST, stree: ast.AST, env: SymbolTable,
+             metadata: tp.MutableMapping):
         etree = ast.fix_missing_locations(etree)
         stree = ast.fix_missing_locations(stree)
         return exec_def_in_file(etree, env, self.path, self.file_name, stree)
@@ -225,7 +226,8 @@ class apply_cst_passes(_apply_passes):
     def exec(self,
             etree: tp.Union[cst.ClassDef, cst.FunctionDef],
             stree: tp.Union[cst.ClassDef, cst.FunctionDef],
-            env: SymbolTable):
+            env: SymbolTable,
+            metadata: tp.MutableMapping):
         return exec_def_in_file(etree, env, self.path, self.file_name, stree)
 
 apply_passes = apply_cst_passes
