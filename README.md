@@ -45,7 +45,7 @@ def foo(...): ...
 ```
 
 ### Wrapping the apply_passes decorator
-The `apply_passes` must not be wrapped.
+The `apply_passes` decorator must not be wrapped.
 
 As decorators are a part of the AST of the object they are applied to
 they must be removed from the rewritten AST before it is executed.  If they
