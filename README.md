@@ -66,7 +66,7 @@ def rewritten_foo(...): ...
 ```
 Note: this would invoke `apply_passes([...])` on `rewritten_foo`
 
-To avoid this the `apply_passes` decoratorfilters itself from the decorator list.  If however
+To avoid this the `apply_passes` decorator filters itself from the decorator list.  If, however,
 the decorator is wrapped inside another decorator, this will fail.
 
 ### Inner decorators are called multiple times
