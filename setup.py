@@ -63,6 +63,7 @@ setup(
         f'{PACKAGE_NAME}.transformers',
         f'{PACKAGE_NAME}.visitors',
     ],
+    dependency_links=['http://github.com/cdonovick/LibCST/tarball/flatten-sentinal#egg=libcst'],
     install_requires=['astor', 'libcst'],
     long_description=LONG_DESCRIPTION,
     long_description_content_type='text/markdown'

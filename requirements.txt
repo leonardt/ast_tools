@@ -1,2 +1,0 @@
-git+git://github.com/cdonovick/LibCST@flatten-sentinal#egg=libcst
-
