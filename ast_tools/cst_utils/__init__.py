@@ -2,7 +2,7 @@ import typing as tp
 
 import libcst as cst
 
-from .insert_statements import InsertStatementsVisitor
+#from .insert_statements import InsertStatementsVisitor
 from .deep_node import DeepNode
 
 
@@ -38,9 +38,7 @@ def make_assign(
         lhs: cst.BaseAssignTargetExpression,
         rhs: cst.BaseExpression,
         ) -> cst.SimpleStatementLine:
-    return to_stmt(
-        cst.Assign(
-            targets=[cst.AssignTarget(lhs),],
-            value=rhs,
-        )
+    return cst.Assign(
+        targets=[cst.AssignTarget(lhs),],
+        value=rhs,
     )
