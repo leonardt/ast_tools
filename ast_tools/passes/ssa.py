@@ -6,10 +6,11 @@ import typing as tp
 
 import libcst as cst
 from libcst.metadata import ExpressionContext, ExpressionContextProvider
+from libcst import matchers as m
 
 from ast_tools.common import gen_free_prefix
-from ast_tools.cst_utils import InsertStatementsVisitor, DeepNode
-from ast_tools.cst_utils import to_module, make_assign
+from ast_tools.cst_utils import DeepNode
+from ast_tools.cst_utils import to_module, make_assign, to_stmt
 from ast_tools.metadata import AlwaysReturnsProvider, IncrementalConditionProvider
 from ast_tools.transformers.node_replacer import NodeReplacer
 from ast_tools.transformers.normalizers import ElifToElse
@@ -120,7 +121,7 @@ def _fold_conditions(
         return conditional
 
 
-class NameTests(InsertStatementsVisitor):
+class NameTests(cst.CSTTransformer):
     '''
     Rewrites if statements so that their tests are a single name
     This gaurentees that the conditions are ssa
@@ -140,7 +141,6 @@ class NameTests(InsertStatementsVisitor):
     added_names: tp.MutableSet[str]
 
     def __init__(self, prefix):
-        super().__init__(cst.codemod.CodemodContext())
         self.format = prefix+'_{}'
         self.added_names = set()
 
@@ -150,13 +150,12 @@ class NameTests(InsertStatementsVisitor):
             ) -> cst.If:
         c_name = cst.Name(value=self.format.format(len(self.added_names)))
         self.added_names.add(c_name.value)
-        assign = make_assign(c_name, updated_node.test)
-        self.insert_statements_before_current([assign])
+        assign = to_stmt(make_assign(c_name, updated_node.test))
         final_node = updated_node.with_changes(test=c_name)
-        return super().leave_If(original_node, final_node)
+        return cst.FlattenSentinel([assign, final_node])
 
 
-class SingleReturn(InsertStatementsVisitor):
+class SingleReturn(cst.CSTTransformer):
     METADATA_DEPENDENCIES = (IncrementalConditionProvider, AlwaysReturnsProvider)
 
     attr_format: tp.Optional[str]
@@ -179,7 +178,6 @@ class SingleReturn(InsertStatementsVisitor):
             strict: bool = True,
             ):
 
-        super().__init__(cst.codemod.CodemodContext())
         self.attr_format = None
         self.attr_states = {}
         self.strict = strict
@@ -218,7 +216,7 @@ class SingleReturn(InsertStatementsVisitor):
                 # default writeback initial value
                 state.append(([], cst.Name(name)))
                 attr_val = _fold_conditions(_simplify_gaurds(state), self.strict)
-                tail.append(make_assign(attr, attr_val))
+                tail.append(to_stmt(make_assign(attr, attr_val)))
 
             if self.returns:
                 strict = self.strict
@@ -230,11 +228,10 @@ class SingleReturn(InsertStatementsVisitor):
                 return_stmt = cst.SimpleStatementLine([cst.Return(value=return_val)])
                 tail.append(return_stmt)
 
-        return super().leave_FunctionDef(original_node, final_node)
+        return final_node
 
     def visit_ClassDef(self,
             node: cst.ClassDef) -> tp.Optional[bool]:
-        super().visit_ClassDef(node)
         return False
 
     def leave_Return(self,
@@ -272,8 +269,7 @@ class SingleReturn(InsertStatementsVisitor):
 
         assignments.append(make_assign(r_name, r_val))
 
-        self.insert_statements_before_current(assignments)
-        return super().leave_Return(original_node, cst.RemoveFromParent())
+        return cst.FlattenSentinel(assignments)
 
     def leave_SimpleStatementSuite(self,
             original_node: cst.SimpleStatementSuite,
@@ -322,7 +318,7 @@ def _wrap(tree: cst.CSTNode) -> cst.MetadataWrapper:
     return cst.MetadataWrapper(tree, unsafe_skip_copy=True)
 
 
-class SSATransformer(InsertStatementsVisitor):
+class SSATransformer(cst.CSTTransformer):
     env: tp.Mapping[str, tp.Any]
     ctxs: tp.Mapping[cst.Name, ExpressionContext]
     scope: tp.Optional[cst.FunctionDef]
@@ -340,7 +336,6 @@ class SSATransformer(InsertStatementsVisitor):
             returning_blocks: tp.AbstractSet[cst.BaseSuite],
             strict: bool = True,
             ):
-        super().__init__(cst.codemod.CodemodContext())
         _builtins = env.get('__builtins__', builtins)
         if isinstance(_builtins, types.ModuleType):
             _builtins = builtins.__dict__
@@ -388,7 +383,7 @@ class SSATransformer(InsertStatementsVisitor):
             new_body = updated_node.body.visit(self)
             final_node = updated_node.with_changes(body=new_body)
 
-        return super().leave_FunctionDef(original_node, final_node)
+        return final_node
 
     def visit_If(self, node: cst.If) -> tp.Optional[bool]:
         super().visit_If(node)
@@ -428,7 +423,7 @@ class SSATransformer(InsertStatementsVisitor):
         f_nt = f_nt.maps[0]
 
         def _mux_name(name, t_name, f_name):
-            return make_assign(
+            return to_stmt(make_assign(
                     cst.Name(self._make_name(name)),
                     cst.IfExp(
                         test=new_test,
@@ -436,6 +431,7 @@ class SSATransformer(InsertStatementsVisitor):
                         orelse=cst.Name(f_name),
                     ),
                 )
+            )
 
         if t_returns and f_returns:
             # No need to mux any names they can't fall through anyway
@@ -466,12 +462,10 @@ class SSATransformer(InsertStatementsVisitor):
                     nt[name] = f_nt[name]
 
 
-        self.insert_statements_after_current(suite)
-        return super().leave_If(original_node, cst.RemoveFromParent())
+        return cst.FlattenSentinel(suite)
 
     def visit_Assign(self, node: cst.Assign) -> tp.Optional[bool]:
         # Control recursion order
-        super().visit_Assign(node)
         return False
 
     def leave_Assign(self,
@@ -480,7 +474,7 @@ class SSATransformer(InsertStatementsVisitor):
         new_value = updated_node.value.visit(self)
         new_targets =  [t.visit(self) for t in updated_node.targets]
         final_node = updated_node.with_changes(value=new_value, targets=new_targets)
-        return super().leave_Assign(original_node, final_node)
+        return final_node
 
     def visit_Attribute(self, node: cst.Attribute) -> tp.Optional[bool]:
         return False
@@ -490,7 +484,7 @@ class SSATransformer(InsertStatementsVisitor):
             updated_node: cst.Attribute) -> cst.Attribute:
         new_value = updated_node.value.visit(self)
         final_node = updated_node.with_changes(value=new_value)
-        return super().leave_Attribute(original_node, final_node)
+        return final_node
 
     def visit_Arg_keyword(self, node: cst.Arg):
         self._in_keyword = True
@@ -535,6 +529,10 @@ class ssa(Pass):
         if not isinstance(tree, cst.FunctionDef):
             raise TypeError('ssa must be run on a FunctionDef')
 
+        # convert `elif cond:` to `else: if cond:`
+        # (simplifies ssa logic)
+        tree = tree.visit(ElifToElse())
+
         wrapper = _wrap(to_module(tree))
         writter_attr_visitor = WrittenAttrs()
         wrapper.visit(writter_attr_visitor)
@@ -566,7 +564,7 @@ class ssa(Pass):
             names_to_attr[attr_name] = norm
             name = cst.Name(attr_name)
             replacer.add_replacement(written_attr, name)
-            init_reads.append(make_assign(name, norm))
+            init_reads.append(to_stmt(make_assign(name, norm)))
 
         # Replace references to attr with the name generated above
         tree = tree.visit(replacer)
@@ -577,9 +575,6 @@ class ssa(Pass):
         name_tests = NameTests(cond_prefix)
         tree = wrapper.visit(name_tests)
 
-        # convert `elif cond:` to `else: if cond:`
-        # (simplifies ssa logic)
-        tree = tree.visit(ElifToElse())
 
         # Transform to single return format
         wrapper = _wrap(tree)
