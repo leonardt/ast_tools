@@ -4,11 +4,10 @@ import libcst as cst
 
 from .symbol_replacer import replace_symbols
 from ..macros import inline
-from ast_tools.cst_utils import to_module, InsertStatementsVisitor
+from ast_tools.cst_utils import to_module
 
-class Inliner(InsertStatementsVisitor):
+class Inliner(cst.CSTTransformer):
     def __init__(self, env: tp.Mapping[str, tp.Any]):
-        super().__init__(cst.codemod.CodemodContext())
         self.env = env
 
     def leave_If(
@@ -23,8 +22,7 @@ class Inliner(InsertStatementsVisitor):
             is_constant = False
         if is_constant and isinstance(cond_obj, inline):
             if cond_obj:
-                self.insert_statements_after_current(updated_node.body.body)
-                updated_node = cst.RemoveFromParent()
+                updated_node = cst.FlattenSentinel(updated_node.body.body)
             else:
                 orelse = updated_node.orelse
                 if orelse is None:
@@ -33,8 +31,7 @@ class Inliner(InsertStatementsVisitor):
                     updated_node = updated_node.orelse
                 else:
                     assert isinstance(orelse, cst.Else)
-                    self.insert_statements_after_current(orelse.body.body)
-                    updated_node = cst.RemoveFromParent()
+                    updated_node = cst.FlattenSentinel(orelse.body.body)
         return super().leave_If(original_node, updated_node)
 
 

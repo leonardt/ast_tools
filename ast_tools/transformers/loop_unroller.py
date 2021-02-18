@@ -4,17 +4,16 @@ import libcst as cst
 
 from .symbol_replacer import replace_symbols
 from ..macros import unroll
-from ast_tools.cst_utils import to_module, InsertStatementsVisitor
+from ast_tools.cst_utils import to_module
 
-class Unroller(InsertStatementsVisitor):
+class Unroller(cst.CSTTransformer):
     def __init__(self, env: tp.Mapping[str, tp.Any]):
-        super().__init__(cst.codemod.CodemodContext())
         self.env = env
 
     def leave_For(
             self,
             original_node: cst.For,
-            updated_node: cst.For) -> cst.CSTNode:
+            updated_node: cst.For) -> tp.Union[cst.For, cst.FlattenSentinel[cst.BaseStatement]]:
 
         try:
             iter_obj = eval(to_module(updated_node.iter).code, {}, self.env)
@@ -36,8 +35,7 @@ class Unroller(InsertStatementsVisitor):
                 else:
                     raise NotImplementedError('Unrolling non-int iterator')
 
-            self.insert_statements_after_current(body)
-            updated_node = cst.RemoveFromParent()
+            updated_node = cst.FlattenSentinel(body)
         return super().leave_For(original_node, updated_node)
 
 

@@ -37,10 +37,8 @@ def to_stmt(node: cst.BaseSmallStatement) -> cst.SimpleStatementLine:
 def make_assign(
         lhs: cst.BaseAssignTargetExpression,
         rhs: cst.BaseExpression,
-        ) -> cst.SimpleStatementLine:
-    return to_stmt(
-        cst.Assign(
-            targets=[cst.AssignTarget(lhs),],
-            value=rhs,
-        )
+        ) -> cst.Assign:
+    return cst.Assign(
+        targets=[cst.AssignTarget(lhs),],
+        value=rhs,
     )

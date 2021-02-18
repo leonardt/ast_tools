@@ -336,12 +336,11 @@ def test_nstrict():
     f2 = apply_passes([ssa(False)])(f1)
     assert inspect.getsource(f2) == '''\
 def f1(cond):
-    _cond_1 = not cond
     _cond_2 = cond
     _cond_0 = cond
     __0_return_0 = 0
+    _cond_1 = not cond
     z_0 = 1
-
     _cond_3 = not cond
     x_0 = z_0
     __0_return_1 = x_0
@@ -373,8 +372,21 @@ def f1(x, y):
     a_1 = y
     a_2 = a_0 if _cond_0 else a_1
     _attr_a_x_1 = 3
-    __0_final_a_x_0 = _attr_a_x_1
-    __0_return_0 = a_2
+    __0_final_a_x_0 = _attr_a_x_1; __0_return_0 = a_2
     a_2.x = __0_final_a_x_0
+    return __0_return_0
+'''
+
+
+def test_call():
+    def f1(x):
+        x = 2
+        return g(x=x)
+
+    f2 = apply_passes([ssa(False)])(f1)
+    assert inspect.getsource(f2) == '''\
+def f1(x):
+    x_0 = 2
+    __0_return_0 = g(x=x_0)
     return __0_return_0
 '''
