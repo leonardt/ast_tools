@@ -8,6 +8,7 @@ from ast_tools.cst_utils import to_module
 
 class Unroller(cst.CSTTransformer):
     def __init__(self, env: tp.Mapping[str, tp.Any]):
+        super().__init__()
         self.env = env
 
     def leave_For(
@@ -41,8 +42,5 @@ class Unroller(cst.CSTTransformer):
 
 def unroll_for_loops(tree: cst.CSTNode, env: tp.Mapping[str, tp.Any]) -> cst.CSTNode:
     visitor = Unroller(env)
-    if isinstance(tree, cst.Module):
-        return tree.visit(visitor)
-    else:
-        new_body = tree.body.visit(visitor)
-        return tree.with_changes(body=new_body)
+    tree = tree.visit(visitor)
+    return tree

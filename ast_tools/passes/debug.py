@@ -57,12 +57,12 @@ class debug(Pass):
         if self.dump_source_filename:
             if "source_filename" not in metadata:
                 raise Exception("Cannot dump source filename without "
-                                "@begin_rewrite(debug=True)")
+                                "apply_passes(..., debug=True)")
             dumps.append(('SOURCE_FILENAME', metadata["source_filename"]))
         if self.dump_source_lines:
             if "source_lines" not in metadata:
                 raise Exception("Cannot dump source lines without "
-                                "@begin_rewrite(debug=True)")
+                                "apply_passes(..., debug=True)")
             lines, start_line_number = metadata["source_lines"]
             dump_str = "".join(f"{start_line_number + i}:{line}" for i, line in
                                enumerate(lines))
