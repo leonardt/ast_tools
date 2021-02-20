@@ -37,6 +37,4 @@ class Inliner(cst.CSTTransformer):
 
 
 def inline_ifs(tree: cst.CSTNode, env: tp.Mapping[str, tp.Any]) -> cst.CSTNode:
-    visitor = Inliner(env)
-    tree =  tree.visit(visitor)
-    return tree
+    return tree.visit(Inliner(env))

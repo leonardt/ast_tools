@@ -41,6 +41,4 @@ class Unroller(cst.CSTTransformer):
 
 
 def unroll_for_loops(tree: cst.CSTNode, env: tp.Mapping[str, tp.Any]) -> cst.CSTNode:
-    visitor = Unroller(env)
-    tree = tree.visit(visitor)
-    return tree
+    return tree.visit(Unroller(env))

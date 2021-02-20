@@ -16,7 +16,6 @@ def test_basic(cond):
 
     inlined = apply_passes([if_inline()])(basic)
     inlined_src = inspect.getsource(inlined)
-    print(inlined_src)
     assert inlined_src == f'''\
 def basic():
     return {0 if cond else 1}
