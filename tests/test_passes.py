@@ -4,8 +4,8 @@ import inspect
 import pytest
 
 import ast_tools
-from ast_tools.passes import begin_rewrite, end_rewrite, debug
-from ast_tools.passes import apply_ast_passes, apply_cst_passes
+from ast_tools.passes import debug, apply_ast_passes, apply_cst_passes
+from ast_tools.passes.util import begin_rewrite, end_rewrite
 from ast_tools.stack import SymbolTable
 
 def attr_setter(attr):
@@ -20,12 +20,13 @@ wrapper2 = attr_setter('b')
 wrapper3 = attr_setter('c')
 
 def test_begin_end():
-    @wrapper1
-    @end_rewrite(file_name='test_begin_end.py')
-    @begin_rewrite()
-    @wrapper2
-    def foo():
-        pass
+    with pytest.warns(DeprecationWarning):
+        @wrapper1
+        @end_rewrite(file_name='test_begin_end.py')
+        @begin_rewrite()
+        @wrapper2
+        def foo():
+            pass
 
     assert foo.a
     assert foo.b
@@ -76,51 +77,58 @@ def foo():
 
 def test_debug(capsys):
     l0 = inspect.currentframe().f_lineno + 1
-    @end_rewrite(file_name='test_debug.py')
-    @ast_tools.passes.debug(dump_source_filename=True, dump_source_lines=True)
-    @begin_rewrite(debug=True)
+    @apply_ast_passes(
+        [ast_tools.passes.debug(dump_source_filename=True, dump_source_lines=True)],
+        debug=True,
+        file_name='test_debug.py',
+    )
     def foo():
         print("bar")
-    assert capsys.readouterr().out == f"""\
+    out = capsys.readouterr().out
+    gold = f"""\
 BEGIN SOURCE_FILENAME
 {os.path.abspath(__file__)}
 END SOURCE_FILENAME
 
 BEGIN SOURCE_LINES
-{l0+0}:    @end_rewrite(file_name='test_debug.py')
-{l0+1}:    @ast_tools.passes.debug(dump_source_filename=True, dump_source_lines=True)
-{l0+2}:    @begin_rewrite(debug=True)
-{l0+3}:    def foo():
-{l0+4}:        print("bar")
+{l0+0}:    @apply_ast_passes(
+{l0+1}:        [ast_tools.passes.debug(dump_source_filename=True, dump_source_lines=True)],
+{l0+2}:        debug=True,
+{l0+3}:        file_name='test_debug.py',
+{l0+4}:    )
+{l0+5}:    def foo():
+{l0+6}:        print("bar")
 END SOURCE_LINES
 
 """
+    assert out == gold
 
 
 def test_debug_error():
-
-    try:
-        @end_rewrite(file_name='test_debug_error.py')
-        @debug(dump_source_filename=True)
-        @begin_rewrite()
+    with pytest.raises(
+            Exception,
+            match=r"Cannot dump source filename without .*"
+            ):
+        @apply_cst_passes([debug(dump_source_filename=True)])
         def foo():
             print("bar")
-    except Exception as e:
-        assert str(e) == "Cannot dump source filename without @begin_rewrite(debug=True)"
 
-    try:
-        @end_rewrite(file_name='test_debug_error.py')
-        @debug(dump_source_lines=True)
-        @begin_rewrite()
+
+    with pytest.raises(
+            Exception,
+            match=r"Cannot dump source lines without .*"
+            ):
+        @apply_cst_passes([debug(dump_source_lines=True)])
         def foo():
             print("bar")
-    except Exception as e:
-        assert str(e) == "Cannot dump source lines without @begin_rewrite(debug=True)"
 
 
 def test_custom_env():
-    @end_rewrite(file_name='test_custom_env.py')
-    @begin_rewrite(env=SymbolTable({'x': 1}, globals=globals()))
+    @apply_cst_passes(
+        [],
+        env=SymbolTable({'x': 1}, globals=globals()),
+        file_name='test_custom_env.py',
+    )
     def f():
         return x
 

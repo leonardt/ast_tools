@@ -1,9 +1,9 @@
 from abc import ABCMeta, abstractmethod
 import ast
 import copy
-
 import inspect
 import typing as tp
+import warnings
 
 import libcst as cst
 
@@ -122,6 +122,10 @@ class begin_rewrite:
     def __init__(self,
                  debug: bool = False,
                  env: tp.Optional[SymbolTable] = None):
+        warnings.warn(
+                "begin_rewrite / end_rewrite are deprcated please use apply_ast_passes instead",
+                DeprecationWarning)
+
         if env is None:
             env = get_symbol_table([self.__init__])
 
@@ -161,6 +165,13 @@ class _apply_passes(metaclass=ABCMeta):
     '''
     Applies a sequence of passes to a function or class
     '''
+    passes: tp.Sequence[Pass]
+    env: SymbolTable
+    debug: bool
+    path: tp.Optional[str]
+    file_name: tp.Optional[str]
+
+
     def __init__(self,
                  passes: tp.Sequence[Pass],
                  debug: bool = False,
@@ -179,7 +190,7 @@ class _apply_passes(metaclass=ABCMeta):
 
     @staticmethod
     @abstractmethod
-    def parse(self, tree): pass
+    def parse(tree): pass
 
 
     @staticmethod
@@ -229,5 +240,6 @@ class apply_cst_passes(_apply_passes):
             env: SymbolTable,
             metadata: tp.MutableMapping):
         return exec_def_in_file(etree, env, self.path, self.file_name, stree)
+
 
 apply_passes = apply_cst_passes
