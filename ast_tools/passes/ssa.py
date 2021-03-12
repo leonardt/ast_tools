@@ -5,21 +5,21 @@ import functools as ft
 import typing as tp
 
 import libcst as cst
-from libcst.metadata import ExpressionContext, ExpressionContextProvider
+from libcst.metadata import ExpressionContext, ExpressionContextProvider, PositionProvider
 from libcst import matchers as m
 
 from ast_tools.common import gen_free_prefix
 from ast_tools.cst_utils import DeepNode
 from ast_tools.cst_utils import to_module, make_assign, to_stmt
 from ast_tools.metadata import AlwaysReturnsProvider, IncrementalConditionProvider
+from ast_tools.stack import SymbolTable
+from ast_tools.transformers.node_tracker import NodeTrackingTransformer, with_tracking
 from ast_tools.transformers.node_replacer import NodeReplacer
 from ast_tools.transformers.normalizers import ElifToElse
-from ast_tools.stack import SymbolTable
+from ast_tools.utils import BiMap
 from . import Pass, PASS_ARGS_T
 
 __ALL__ = ['ssa']
-
-
 
 #([gaurds], expr])
 _GAURDED_EXPR = tp.Tuple[tp.Sequence[cst.BaseExpression], cst.BaseExpression]
@@ -121,7 +121,7 @@ def _fold_conditions(
         return conditional
 
 
-class NameTests(cst.CSTTransformer):
+class NameTests(NodeTrackingTransformer):
     '''
     Rewrites if statements so that their tests are a single name
     This gaurentees that the conditions are ssa
@@ -141,6 +141,7 @@ class NameTests(cst.CSTTransformer):
     added_names: tp.MutableSet[str]
 
     def __init__(self, prefix):
+        super().__init__()
         self.format = prefix+'_{}'
         self.added_names = set()
 
@@ -155,7 +156,7 @@ class NameTests(cst.CSTTransformer):
         return cst.FlattenSentinel([assign, final_node])
 
 
-class SingleReturn(cst.CSTTransformer):
+class SingleReturn(NodeTrackingTransformer):
     METADATA_DEPENDENCIES = (IncrementalConditionProvider, AlwaysReturnsProvider)
 
     attr_format: tp.Optional[str]
@@ -167,10 +168,9 @@ class SingleReturn(cst.CSTTransformer):
     return_format: tp.Optional[str]
     returns: tp.MutableSequence[_GAURDED_EXPR]
     scope: tp.Optional[cst.FunctionDef]
-    tail: tp.MutableSequence[tp.Union[cst.BaseStatement, cst.BaseSmallStatement]]
+    tail: tp.MutableSequence[cst.BaseStatement]
     added_names: tp.MutableSet[str]
     returning_blocks: tp.MutableSet[cst.BaseSuite]
-
 
     def __init__(self,
             env: tp.Mapping[str, tp.Any],
@@ -178,6 +178,7 @@ class SingleReturn(cst.CSTTransformer):
             strict: bool = True,
             ):
 
+        super().__init__()
         self.attr_format = None
         self.attr_states = {}
         self.strict = strict
@@ -216,7 +217,8 @@ class SingleReturn(cst.CSTTransformer):
                 # default writeback initial value
                 state.append(([], cst.Name(name)))
                 attr_val = _fold_conditions(_simplify_gaurds(state), self.strict)
-                tail.append(to_stmt(make_assign(attr, attr_val)))
+                write = to_stmt(make_assign(attr, attr_val))
+                tail.append(write)
 
             if self.returns:
                 strict = self.strict
@@ -296,6 +298,7 @@ class WrittenAttrs(cst.CSTVisitor):
     written_attrs: tp.MutableSet[cst.Attribute]
 
     def __init__(self):
+        super().__init__()
         self.written_attrs = set()
 
 
@@ -318,16 +321,20 @@ def _wrap(tree: cst.CSTNode) -> cst.MetadataWrapper:
     return cst.MetadataWrapper(tree, unsafe_skip_copy=True)
 
 
-class SSATransformer(cst.CSTTransformer):
+class SSATransformer(NodeTrackingTransformer):
     env: tp.Mapping[str, tp.Any]
     ctxs: tp.Mapping[cst.Name, ExpressionContext]
     scope: tp.Optional[cst.FunctionDef]
-    name_table: ChainMap
+    name_table: tp.ChainMap[str, str]
     name_idx: Counter
     name_formats: tp.MutableMapping[str, str]
+    name_assignments: tp.MutableMapping[str, tp.Union[cst.Assign, cst.Param]]
+    original_names: tp.MutableMapping[str, str]
     final_names: tp.AbstractSet[str]
     returning_blocks: tp.AbstractSet[cst.BaseSuite]
-    _in_keyword: bool
+    _skip: bool
+    _assigned_names: tp.MutableSequence[str]
+
 
     def __init__(self,
             env: tp.Mapping[str, tp.Any],
@@ -336,19 +343,23 @@ class SSATransformer(cst.CSTTransformer):
             returning_blocks: tp.AbstractSet[cst.BaseSuite],
             strict: bool = True,
             ):
+        super().__init__()
         _builtins = env.get('__builtins__', builtins)
         if isinstance(_builtins, types.ModuleType):
             _builtins = builtins.__dict__
         self.env = ChainMap(env, _builtins)
         self.ctxs = ctxs
         self.scope = None
+        self.name_assignments = ChainMap()
         self.name_idx = Counter()
         self.name_table = ChainMap({k: k for k in self.env})
         self.name_formats = {}
+        self.original_names = {}
         self.final_names = final_names
         self.strict = strict
         self.returning_blocks = returning_blocks
-        self._in_keyword = False
+        self._skip = False
+        self._assigned_names = []
 
 
     def _make_name(self, name):
@@ -359,13 +370,13 @@ class SSATransformer(cst.CSTTransformer):
         ssa_name = self.name_formats[name].format(self.name_idx[name])
         self.name_idx[name] += 1
         self.name_table[name] = ssa_name
+        self.original_names[ssa_name] = name
         return ssa_name
 
     def visit_FunctionDef(self,
             node: cst.FunctionDef) -> tp.Optional[bool]:
         # prevent recursion into inner functions
         # and control recursion
-        super().visit_FunctionDef(node)
         if self.scope is None:
             self.scope = node
         return False
@@ -379,10 +390,15 @@ class SSATransformer(cst.CSTTransformer):
             for param in updated_node.params.params:
                 name = param.name.value
                 self.name_table[name] = name
+                self.name_assignments[name] = param
 
+            # Need to visit params to get them to be rebuilt and therfore
+            # tracked to build the symbol table
+            self._skip = True
+            update_params = updated_node.params.visit(self)
+            self._skip = False
             new_body = updated_node.body.visit(self)
-            final_node = updated_node.with_changes(body=new_body)
-
+            final_node = updated_node.with_changes(body=new_body, params=update_params)
         return final_node
 
     def visit_If(self, node: cst.If) -> tp.Optional[bool]:
@@ -422,16 +438,31 @@ class SSATransformer(cst.CSTTransformer):
         t_nt = t_nt.maps[0]
         f_nt = f_nt.maps[0]
 
+
         def _mux_name(name, t_name, f_name):
-            return to_stmt(make_assign(
-                    cst.Name(self._make_name(name)),
-                    cst.IfExp(
-                        test=new_test,
-                        body=cst.Name(t_name),
-                        orelse=cst.Name(f_name),
-                    ),
-                )
+            new_name = self._make_name(name)
+            assign = make_assign(
+                cst.Name(new_name),
+                cst.IfExp(
+                    test=new_test,
+                    body=cst.Name(t_name),
+                    orelse=cst.Name(f_name),
+                ),
             )
+            self.name_assignments[new_name] = assign
+
+            stmt = to_stmt(assign)
+
+            assert isinstance(original_node, cst.If)
+            assert isinstance(self.name_assignments[t_name], (cst.Assign, cst.Param))
+            assert isinstance(self.name_assignments[f_name], (cst.Assign, cst.Param))
+            self.track_with_children((
+                self.name_assignments[t_name],
+                self.name_assignments[f_name],
+                original_node,
+                ),  stmt)
+            assert assign in self.node_tracking_table.i
+            return stmt
 
         if t_returns and f_returns:
             # No need to mux any names they can't fall through anyway
@@ -472,8 +503,12 @@ class SSATransformer(cst.CSTTransformer):
             original_node: cst.Assign,
             updated_node: cst.Assign) -> cst.Assign:
         new_value = updated_node.value.visit(self)
+        assert not self._assigned_names
         new_targets =  [t.visit(self) for t in updated_node.targets]
         final_node = updated_node.with_changes(value=new_value, targets=new_targets)
+        for name in self._assigned_names:
+            self.name_assignments[name] = original_node
+        self._assigned_names = []
         return final_node
 
     def visit_Attribute(self, node: cst.Attribute) -> tp.Optional[bool]:
@@ -487,15 +522,15 @@ class SSATransformer(cst.CSTTransformer):
         return final_node
 
     def visit_Arg_keyword(self, node: cst.Arg):
-        self._in_keyword = True
+        self._skip = True
 
     def leave_Arg_keyword(self, node: cst.Arg):
-        self._in_keyword = False
+        self._skip = False
 
     def leave_Name(self,
             original_node: cst.Name,
             updated_node: cst.Name) -> cst.Name:
-        if self._in_keyword:
+        if self._skip:
             return updated_node
 
         name = updated_node.value
@@ -514,30 +549,101 @@ class SSATransformer(cst.CSTTransformer):
                     raise SyntaxError(f'Cannot prove name `{name}` is defined')
                 else:
                     return cst.Name(name)
+        elif ctx is ExpressionContext.STORE:
+            new_name = self._make_name(name)
+            self._assigned_names.append(new_name)
+            return cst.Name(new_name)
         else:
-            return cst.Name(self._make_name(name))
+            return updated_node
 
+class GenerateSymbolTable(cst.CSTVisitor):
+    node_tracking_table: BiMap[cst.CSTNode, cst.CSTNode]
+
+    def __init__(self, node_tracking_table, original_names, pos_info, start_ln, end_ln):
+        self.node_tracking_table = node_tracking_table
+        self.original_names = original_names
+        self.pos_info = pos_info
+        self.start_ln = start_ln
+        self.end_ln = end_ln
+        self.symbol_table = {
+            i: {} for i in range(start_ln, end_ln+1)
+        }
+        self.scope = None
+
+
+    def _set_name(self, name, new_name, origins):
+        ln = self.start_ln
+        for origin in origins:
+            pos = self.pos_info[origin]
+
+            if isinstance(origin, (cst.BaseExpression, cst.BaseSmallStatement, cst.Param)):
+                ln = max(ln, pos.end.line)
+            else:
+                assert isinstance(origin, cst.BaseCompoundStatement)
+                ln = max(ln, pos.end.line + 1)
+
+        for i in range(ln, self.end_ln+1):
+            self.symbol_table[i][name] = new_name
+
+
+    def visit_FunctionDef(self,
+            node: cst.FunctionDef) -> tp.Optional[bool]:
+        if self.scope is None:
+            self.scope = node
+            return True
+        return False
+
+    def visit_Param(self, node: cst.Param) -> tp.Optional[bool]:
+        name = node.name.value
+        origins = self.node_tracking_table.i[node]
+        self._set_name(name, name, origins)
+
+    def visit_Assign(self, node: cst.Assign) -> tp.Optional[bool]:
+        for t in node.targets:
+            t = t.target
+            if m.matches(t, m.Name()):
+                ssa_name = t.value
+                if ssa_name in self.original_names:
+                    ln = self.start_ln
+                    name = self.original_names[ssa_name]
+                    # HACK attrs not currently tracked properly
+                    try:
+                        origins = self.node_tracking_table.i[t]
+                    except KeyError:
+                        continue
+                    self._set_name(name, ssa_name, origins)
 
 class ssa(Pass):
     def __init__(self, strict: bool = True):
         self.strict = strict
 
     def rewrite(self,
-            tree: cst.FunctionDef,
+            original_tree: cst.FunctionDef,
             env: SymbolTable,
             metadata: tp.MutableMapping) -> PASS_ARGS_T:
-        if not isinstance(tree, cst.FunctionDef):
+        if not isinstance(original_tree, cst.FunctionDef):
             raise TypeError('ssa must be run on a FunctionDef')
+
+
+        # resolve position information necessary for generating symbol table
+        wrapper = _wrap(to_module(original_tree))
+        pos_info = wrapper.resolve(PositionProvider)
 
         # convert `elif cond:` to `else: if cond:`
         # (simplifies ssa logic)
-        tree = tree.visit(ElifToElse())
+        transformer = with_tracking(ElifToElse)()
+        tree = original_tree.visit(transformer)
+
+        # original node -> generated nodes
+        node_tracking_table = transformer.node_tracking_table
+        # node_tracking_table.i
+        # generated node -> original nodes
 
         wrapper = _wrap(to_module(tree))
         writter_attr_visitor = WrittenAttrs()
         wrapper.visit(writter_attr_visitor)
 
-        replacer = AttrReplacer()
+        replacer = with_tracking(AttrReplacer)()
         attr_format = gen_free_prefix(tree, env, '_attr') + '_{}_{}'
         init_reads = []
         names_to_attr = {}
@@ -547,7 +653,7 @@ class ssa(Pass):
             d_attr = DeepNode(written_attr)
             if d_attr in seen:
                 continue
-            elif not isinstance(written_attr.value, cst.Name):
+            if not isinstance(written_attr.value, cst.Name):
                 raise NotImplementedError('writing non name nodes is not supported')
 
             seen.add(d_attr)
@@ -564,10 +670,14 @@ class ssa(Pass):
             names_to_attr[attr_name] = norm
             name = cst.Name(attr_name)
             replacer.add_replacement(written_attr, name)
-            init_reads.append(to_stmt(make_assign(name, norm)))
+            read = to_stmt(make_assign(name, norm))
+            init_reads.append(read)
 
         # Replace references to attr with the name generated above
         tree = tree.visit(replacer)
+
+
+        node_tracking_table = replacer.trace_origins(node_tracking_table)
 
         # Rewrite conditions to be ssa
         cond_prefix = gen_free_prefix(tree, env, '_cond')
@@ -575,11 +685,15 @@ class ssa(Pass):
         name_tests = NameTests(cond_prefix)
         tree = wrapper.visit(name_tests)
 
+        node_tracking_table = name_tests.trace_origins(node_tracking_table)
+
 
         # Transform to single return format
         wrapper = _wrap(tree)
         single_return = SingleReturn(env, names_to_attr, self.strict)
         tree = wrapper.visit(single_return)
+
+        node_tracking_table = single_return.trace_origins(node_tracking_table)
 
         # insert the initial reads / final writes / return
         body = tree.body
@@ -601,5 +715,20 @@ class ssa(Pass):
                 strict=self.strict)
         tree = tree.visit(ssa_transformer)
 
+        node_tracking_table = ssa_transformer.trace_origins(node_tracking_table)
+
         tree.validate_types_deep()
+        # generate symbol table
+        start_ln = pos_info[original_tree].start.line
+        end_ln = pos_info[original_tree].end.line
+        visitor = GenerateSymbolTable(
+                node_tracking_table,
+                ssa_transformer.original_names,
+                pos_info,
+                start_ln,
+                end_ln,
+        )
+
+        tree.visit(visitor)
+        metadata.setdefault('SYMBOL-TABLE', list()).append((type(self), visitor.symbol_table))
         return tree, env, metadata

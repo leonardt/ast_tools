@@ -140,7 +140,10 @@ def test_reassign_arg():
     def bar(x):
         return x
 
-    @apply_passes([ssa()])
+    deco = apply_passes([ssa()])
+    deco.env.locals['deco'] = deco
+
+    @deco
     def foo(a, b):
         if b:
             a = len(a)
@@ -153,6 +156,28 @@ def foo(a, b):
     __0_return_0 = a_1
     return __0_return_0
 '''
+    symbol_tables = deco.metadata['SYMBOL-TABLE']
+    assert len(symbol_tables) == 1
+    assert symbol_tables[0][0] == ssa
+    symbol_table = symbol_tables[0][1]
+    assert symbol_table == {
+        2: {
+            'a': 'a',
+            'b': 'b',
+        },
+        3: {
+            'a': 'a',
+            'b': 'b',
+        },
+        4: {
+            'a': 'a_0',
+            'b': 'b',
+        },
+        5: {
+            'a': 'a_1',
+            'b': 'b',
+        },
+    }
 
 
 def test_double_nested_function_call():
@@ -162,30 +187,44 @@ def test_double_nested_function_call():
     def baz(x):
         return x + 1
 
-    @apply_passes([ssa()])
-    def foo(a, b, c):
-        if b:
-            a = bar(a)
-        else:
-            a = bar(a)
-        if c:
-            b = bar(b)
-        else:
-            b = bar(b)
-        return a, b
+    deco = apply_passes([ssa()])
+    deco.env.locals['deco'] = deco
+
+    @deco               # 1
+    def foo(a, b, c):   # 2
+        if b:           # 3
+            a = bar(a)  # 4
+        else:           # 5
+            a = bar(a)  # 6
+        if c:           # 7
+            b = bar(b)  # 8
+        else:           # 9
+            b = bar(b)  # 10
+        return a, b     # 11
     assert inspect.getsource(foo) == '''\
-def foo(a, b, c):
+def foo(a, b, c):   # 2
     _cond_0 = b
-    a_0 = bar(a)
-    a_1 = bar(a)
+    a_0 = bar(a)  # 4
+    a_1 = bar(a)  # 6
     a_2 = a_0 if _cond_0 else a_1
     _cond_1 = c
-    b_0 = bar(b)
-    b_1 = bar(b)
+    b_0 = bar(b)  # 8
+    b_1 = bar(b)  # 10
     b_2 = b_0 if _cond_1 else b_1
-    __0_return_0 = a_2, b_2
+    __0_return_0 = a_2, b_2     # 11
     return __0_return_0
 '''
+
+    symbol_tables = deco.metadata['SYMBOL-TABLE']
+    assert len(symbol_tables) == 1
+    assert symbol_tables[0][0] == ssa
+    symbol_table = symbol_tables[0][1]
+    gold_table = {i: {
+        'a': 'a' if i < 4 else 'a_0' if i <  6 else 'a_1' if i <  7 else 'a_2',
+        'b': 'b' if i < 8 else 'b_0' if i < 10 else 'b_1' if i < 11 else 'b_2',
+        'c': 'c',
+        } for i in range(2, 12)}
+    assert symbol_table == gold_table
 
 class Thing:
     def __init__(self, x=None):
