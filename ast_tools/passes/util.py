@@ -71,7 +71,6 @@ class _DecoratorStripper(metaclass=ABCMeta):
                 else:
                     in_group = True
             else:
-                print(node)
                 decorators.append(node)
 
         tree = cls.set_decorators(tree, reversed(decorators))
