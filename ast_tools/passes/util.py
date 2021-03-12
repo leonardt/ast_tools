@@ -22,8 +22,14 @@ def _issubclass(t, s) -> bool:
     except TypeError:
         return False
 
+def _isinstance(t, s) -> bool:
+    try:
+        return isinstance(t, s)
+    except TypeError:
+        return False
+
 def _is_subclass_or_instance(t, s) -> bool:
-    return isinstance(t, s) or _issubclass(t, s)
+    return _isinstance(t, s) or _issubclass(t, s)
 
 
 class _DecoratorStripper(metaclass=ABCMeta):
@@ -55,10 +61,10 @@ class _DecoratorStripper(metaclass=ABCMeta):
 
             deco = cls.lookup(node, env)
             if in_group:
-                if end_sentinel is None or _is_subclass_or_instance(deco, end_sentinel):
+                if _is_subclass_or_instance(deco, end_sentinel):
                     in_group = False
                     first_group = False
-            elif _is_subclass_or_instance(deco, start_sentinel):
+            elif start_sentinel is None or _is_subclass_or_instance(deco, start_sentinel):
                 if start_sentinel is end_sentinel:
                     # Just remove current decorator
                     first_group = False
