@@ -358,7 +358,7 @@ class SSATransformer(NodeTrackingTransformer):
         self.final_names = final_names
         self.strict = strict
         self.returning_blocks = returning_blocks
-        self._skip = False
+        self._skip = 0
         self._assigned_names = []
 
 
@@ -394,11 +394,15 @@ class SSATransformer(NodeTrackingTransformer):
 
             # Need to visit params to get them to be rebuilt and therfore
             # tracked to build the symbol table
-            self._skip = True
+            self._skip += 1
             update_params = updated_node.params.visit(self)
-            self._skip = False
+            self._skip -= 1
+            assert not self._skip
+            assert not self._assigned_names, self._assigned_names
             new_body = updated_node.body.visit(self)
             final_node = updated_node.with_changes(body=new_body, params=update_params)
+            assert not self._skip
+            assert not self._assigned_names, self._assigned_names
         return final_node
 
     def visit_If(self, node: cst.If) -> tp.Optional[bool]:
@@ -503,7 +507,7 @@ class SSATransformer(NodeTrackingTransformer):
             original_node: cst.Assign,
             updated_node: cst.Assign) -> cst.Assign:
         new_value = updated_node.value.visit(self)
-        assert not self._assigned_names
+        assert not self._assigned_names, (to_module(original_node).code, self._assigned_names)
         new_targets =  [t.visit(self) for t in updated_node.targets]
         final_node = updated_node.with_changes(value=new_value, targets=new_targets)
         for name in self._assigned_names:
@@ -522,10 +526,10 @@ class SSATransformer(NodeTrackingTransformer):
         return final_node
 
     def visit_Arg_keyword(self, node: cst.Arg):
-        self._skip = True
+        self._skip += 1
 
     def leave_Arg_keyword(self, node: cst.Arg):
-        self._skip = False
+        self._skip -= 1
 
     def leave_Name(self,
             original_node: cst.Name,
