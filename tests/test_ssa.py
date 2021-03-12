@@ -11,6 +11,8 @@ from ast_tools.passes.ssa import ssa
 from ast_tools.passes import apply_passes, debug
 from ast_tools.stack import SymbolTable
 
+
+
 NTEST = 16
 
 basic_template = '''\
@@ -429,3 +431,29 @@ def f1(x):
     __0_return_0 = g(x=x_0)
     return __0_return_0
 '''
+
+
+def ident(x): return x
+
+sig_template = '''\
+def f(x{}, y{}) -> ({}, {}):
+    return x, y
+'''
+
+
+template_options = ['', 'int', 'ident(int)', 'ident(x=int)']
+
+@pytest.mark.parametrize('strict', [True, False])
+@pytest.mark.parametrize('x', template_options)
+@pytest.mark.parametrize('y', template_options)
+def test_call_in_annotations(strict, x, y):
+    r_x = x if x else 'int'
+    r_y = y if y else 'int'
+    x = f': {x}' if x else x
+    y = f': {y}' if y else y
+    src = sig_template.format(x, y, r_x, r_y)
+    tree = cst.parse_statement(src)
+    env = SymbolTable(locals(), globals())
+    f1 = exec_def_in_file(tree, env)
+    f2 = apply_passes([ssa(strict)])(f1)
+
