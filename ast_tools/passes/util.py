@@ -22,6 +22,15 @@ def _issubclass(t, s) -> bool:
     except TypeError:
         return False
 
+def _isinstance(t, s) -> bool:
+    try:
+        return isinstance(t, s)
+    except TypeError:
+        return False
+
+def _is_subclass_or_instance(t, s) -> bool:
+    return _isinstance(t, s) or _issubclass(t, s)
+
 
 class _DecoratorStripper(metaclass=ABCMeta):
     @staticmethod
@@ -52,10 +61,10 @@ class _DecoratorStripper(metaclass=ABCMeta):
 
             deco = cls.lookup(node, env)
             if in_group:
-                if _issubclass(deco, end_sentinel):
+                if _is_subclass_or_instance(deco, end_sentinel):
                     in_group = False
                     first_group = False
-            elif start_sentinel is None or _issubclass(deco, start_sentinel):
+            elif start_sentinel is None or _is_subclass_or_instance(deco, start_sentinel):
                 if start_sentinel is end_sentinel:
                     # Just remove current decorator
                     first_group = False
@@ -204,6 +213,8 @@ class _apply_passes(metaclass=ABCMeta):
 
     def __call__(self, fn):
         tree = self.parse(fn)
+        self.i_tree = tree
+
         metadata = {}
         if self.debug:
             metadata["source_filename"] = inspect.getsourcefile(fn)
@@ -213,6 +224,9 @@ class _apply_passes(metaclass=ABCMeta):
         for p in self.passes:
             args = p(args)
         tree, env, metadata = args
+
+        self.f_tree = tree
+        self.metadata = metadata
 
         etree = self.strip_decorators(tree, env, type(self), None)
         stree = self.strip_decorators(tree, env, type(self), type(self))
