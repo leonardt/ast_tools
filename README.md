@@ -8,7 +8,7 @@ pip install ast_tools
 ```
 
 # Useful References
-* [Green Tree Snakes - the missing Python AST docs](greentreesnakes.readthedocs.io/)
+* [Green Tree Snakes - the missing Python AST docs](https://greentreesnakes.readthedocs.io/)
 
 
 # Passes
