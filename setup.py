@@ -65,7 +65,7 @@ setup(
     ],
     install_requires=[
         'astor',
-        'libcst @ git+git://github.com/cdonovick/LibCST@flatten-sentinal#egg=libcst',
+        'libcst',
     ],
     long_description=LONG_DESCRIPTION,
     long_description_content_type='text/markdown'
