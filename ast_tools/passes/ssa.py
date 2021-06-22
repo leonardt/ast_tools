@@ -394,9 +394,7 @@ class SSATransformer(NodeTrackingTransformer):
 
             # Need to visit params to get them to be rebuilt and therfore
             # tracked to build the symbol table
-            self._skip += 1
             update_params = updated_node.params.visit(self)
-            self._skip -= 1
             assert not self._skip
             assert not self._assigned_names, self._assigned_names
             new_body = updated_node.body.visit(self)
@@ -530,6 +528,16 @@ class SSATransformer(NodeTrackingTransformer):
 
     def leave_Arg_keyword(self, node: cst.Arg):
         self._skip -= 1
+
+    def visit_Parameters(self, node: cst.Parameters) -> tp.Optional[bool]:
+        self._skip += 1
+        return True
+
+    def leave_Parameters(self,
+            original_node: cst.Parameters,
+            updated_node: cst.Parameters) -> cst.Parameters:
+        self._skip -= 1
+        return updated_node
 
     def leave_Name(self,
             original_node: cst.Name,
