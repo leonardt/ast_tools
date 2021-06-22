@@ -36,6 +36,7 @@ def _do_ssa(func, strict, **kwargs):
         func = dec(func)
     return func
 
+
 @pytest.mark.parametrize('strict', [True, False])
 @pytest.mark.parametrize('a', template_options)
 @pytest.mark.parametrize('b', template_options)
@@ -457,3 +458,20 @@ def test_call_in_annotations(strict, x, y):
     f1 = exec_def_in_file(tree, env)
     f2 = apply_passes([ssa(strict)])(f1)
 
+
+@pytest.mark.parametrize('strict', [True, False])
+def test_issue_79(strict):
+    class Wrapper:
+        def __init__(self, val):
+            self.val = val
+        def apply(self, f):
+            return f(self.val)
+
+    def f1(x):
+        return x.apply(lambda x: x+1)
+
+    f2 = apply_passes([ssa(strict)])(f1)
+
+    for _ in range(8):
+        x = Wrapper(random.randint(0, 1<<10))
+        assert f1(x) == f2(x)
