@@ -145,7 +145,7 @@ from ast_tools.passes import apply_passes, if_inline
 
 y = True
 
-apply_passes([if_inline()])
+@apply_passes([if_inline()])
 def foo(x):
     if inline(y):
         return x + 1
