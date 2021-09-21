@@ -95,6 +95,32 @@ def nested(cond):
     assert nested(cond_1) == inlined(cond_1)
 
 
+@pytest.mark.parametrize('cond', [False, True])
+def test_if_no_else(cond):
+    def if_no_else():
+        x = 0
+        if inline(cond):
+            x = 1
+        return x
+
+    if cond:
+        gold_src = '''\
+def if_no_else():
+    x = 0
+    x = 1
+    return x
+'''
+    else:
+        gold_src = '''\
+def if_no_else():
+    x = 0
+    return x
+'''
+    inlined = apply_passes([if_inline()])(if_no_else)
+    assert inspect.getsource(inlined) == gold_src
+    assert if_no_else() == inlined()
+
+
 def test_readme_example():
     y = True
     @apply_passes([if_inline()])
