@@ -5,6 +5,7 @@ import libcst as cst
 from ast_tools.stack import SymbolTable
 from . import Pass, PASS_ARGS_T
 from ast_tools.transformers.if_inliner import inline_ifs
+from ast_tools.transformers.normalizers import ElifToElse
 
 
 class if_inline(Pass):
