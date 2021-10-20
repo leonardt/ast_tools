@@ -179,6 +179,7 @@ class _apply_passes(metaclass=ABCMeta):
     debug: bool
     path: tp.Optional[str]
     file_name: tp.Optional[str]
+    metadata_attr: tp.Optional[str]
 
 
     def __init__(self,
@@ -186,7 +187,8 @@ class _apply_passes(metaclass=ABCMeta):
                  debug: bool = False,
                  env: tp.Optional[SymbolTable] = None,
                  path: tp.Optional[str] = None,
-                 file_name: tp.Optional[str] = None
+                 file_name: tp.Optional[str] = None,
+                 metadata_attr: tp.Optional[str] = None,
             ):
         if env is None:
             env = get_symbol_table([self.__init__])
@@ -195,6 +197,7 @@ class _apply_passes(metaclass=ABCMeta):
         self.debug = debug
         self.path = path
         self.file_name = file_name
+        self.metadata_attr = metadata_attr
 
 
     @staticmethod
@@ -230,8 +233,12 @@ class _apply_passes(metaclass=ABCMeta):
 
         etree = self.strip_decorators(tree, env, type(self), None)
         stree = self.strip_decorators(tree, env, type(self), type(self))
-        return self.exec(etree, stree, env, metadata)
+        fn = self.exec(etree, stree, env, metadata)
 
+        if self.metadata_attr is not None:
+            setattr(fn, self.metadata_attr, metadata)
+
+        return fn
 
 class apply_ast_passes(_apply_passes):
     parse = staticmethod(get_ast)
