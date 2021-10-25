@@ -143,10 +143,7 @@ def test_reassign_arg():
     def bar(x):
         return x
 
-    deco = apply_passes([ssa()])
-    deco.env.locals['deco'] = deco
-
-    @deco
+    @apply_passes([ssa()], metadata_attr='metadata')
     def foo(a, b):
         if b:
             a = len(a)
@@ -159,7 +156,7 @@ def foo(a, b):
     __0_return_0 = a_1
     return __0_return_0
 '''
-    symbol_tables = deco.metadata['SYMBOL-TABLE']
+    symbol_tables = foo.metadata['SYMBOL-TABLE']
     assert len(symbol_tables) == 1
     assert symbol_tables[0][0] == ssa
     symbol_table = symbol_tables[0][1]
@@ -190,10 +187,7 @@ def test_double_nested_function_call():
     def baz(x):
         return x + 1
 
-    deco = apply_passes([ssa()])
-    deco.env.locals['deco'] = deco
-
-    @deco               # 1
+    @apply_passes([ssa()], metadata_attr='metadata') # 1
     def foo(a, b, c):   # 2
         if b:           # 3
             a = bar(a)  # 4
@@ -218,7 +212,7 @@ def foo(a, b, c):   # 2
     return __0_return_0
 '''
 
-    symbol_tables = deco.metadata['SYMBOL-TABLE']
+    symbol_tables = foo.metadata['SYMBOL-TABLE']
     assert len(symbol_tables) == 1
     assert symbol_tables[0][0] == ssa
     symbol_table = symbol_tables[0][1]
