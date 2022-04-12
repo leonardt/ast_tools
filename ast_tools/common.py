@@ -1,5 +1,6 @@
 import abc
 import ast
+import datetime
 import functools
 import inspect
 import itertools
@@ -49,7 +50,7 @@ def exec_def_in_file(
     """
     tree_name = _get_name(tree)
     if file_name is None:
-        file_name = tree_name + f'{hash(tree)}.py'
+        file_name = f'{tree_name}_{datetime.datetime.now().isoformat()}.py'
 
     return exec_in_file(tree, st, path, file_name, serialized_tree)[tree_name]
 
@@ -108,7 +109,7 @@ def exec_str_in_file(
         path = '.ast_tools'
 
     if file_name is None:
-        file_name = f'ast_tools_exec_{hash(source)}.py'
+        file_name = f'ast_tools_exec_{datetime.datetime.now().isoformat()}.py'
 
     if serialized_source is None:
         serialized_source = source
