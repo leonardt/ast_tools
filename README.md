@@ -159,3 +159,7 @@ def foo(x):
     return x + 1
 """
 ```
+
+# Developing
+Interested in extending the library? Check out these [developer
+docs](https://github.com/leonardt/ast_tools/blob/master/docs/developer.md)
