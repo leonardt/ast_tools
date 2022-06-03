@@ -12,7 +12,7 @@ the definition
 [here](https://github.com/leonardt/ast_tools/blob/master/ast_tools/passes/base.py#L13).
 
 The essential method is the `rewrite` method:
-```
+```python
     def rewrite(self,
                 tree: cst.CSTNode,
                 env: SymbolTable,
