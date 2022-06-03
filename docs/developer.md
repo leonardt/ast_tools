@@ -54,6 +54,14 @@ The
 transformer is another good place to start, which similarly relies on the `env`
 to evaluate `if` statements at "macro" time.
 
+The
+[if_to_phi](https://github.com/leonardt/ast_tools/blob/master/ast_tools/passes/if_to_phi.py)
+pass provides an example of how `env` might be modified by a pass.
+
+The
+[debug](https://github.com/leonardt/ast_tools/blob/master/ast_tools/passes/debug.py)
+pass provides an example of how metadata might be used.
+
 After reviewing these examples, you're ready to look at the full suite of
 standard
 [passes](https://github.com/leonardt/ast_tools/tree/master/ast_tools/passes)
