@@ -213,6 +213,25 @@ class _apply_passes(metaclass=ABCMeta):
     @abstractmethod
     def exec(self, etree, stree, env): pass
 
+    def prologue(self, tree, env, metadata):
+        """
+        Invoked before `do_passes`, redefine this method to add code that
+        operates on the initial `tree`, `env`, and `metadata`
+        """
+        return tree, env, metadata
+
+    def do_passes(self, tree, env, metadata):
+        args = (tree, env, metadata)
+        for p in self.passes:
+            args = p(args)
+        return args
+
+    def epilogue(self, tree, env, metadata):
+        """
+        Invoked after `do_passes`, redefine this method to add code that
+        operates on the final `tree`, `env`, and `metadata`
+        """
+        return tree, env, metadata
 
     def __call__(self, fn):
         tree = self.parse(fn)
@@ -223,10 +242,10 @@ class _apply_passes(metaclass=ABCMeta):
             metadata["source_filename"] = inspect.getsourcefile(fn)
             metadata["source_lines"] = inspect.getsourcelines(fn)
 
-        args = tree, self.env, metadata
-        for p in self.passes:
-            args = p(args)
-        tree, env, metadata = args
+        tree, env, metadata = self.prologue(tree, self.env,
+                                            metadata)
+        tree, env, metadata = self.do_passes(tree, env, metadata)
+        tree, env, metadata = self.epilogue(tree, env, metadata)
 
         self.f_tree = tree
         self.metadata = metadata
